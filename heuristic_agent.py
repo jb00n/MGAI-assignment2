@@ -77,5 +77,21 @@ def _safe_moves(game_state: typing.Dict) -> typing.List[Move]:
             is_move_safe["right"] = False
 
 
+    # prevent colliding with other snakes
+    opponents = game_state['board']['snakes']
+    for snake in opponents[1:]: # start at 2nd snake because i am first snake in list
+        for segment in snake['body']:
+            if segment["x"] == my_head["x"] and segment["y"] == my_head["y"] + 1:
+                is_move_safe["up"] = False
+            elif segment["x"] == my_head["x"] and segment["y"] == my_head["y"] - 1:
+                is_move_safe["down"] = False
+            elif segment["x"] == my_head["x"] - 1 and segment["y"] == my_head["y"]:
+                is_move_safe["left"] = False
+            elif segment["x"] == my_head["x"] + 1 and segment["y"] == my_head["y"]:
+                is_move_safe["right"] = False
+
+    # TODO: make a check. If colide with head of other snake, only unsafe if other snake is same length or longer
+
+
     return [move for move, safe in is_move_safe.items() if safe]
 
