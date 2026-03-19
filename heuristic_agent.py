@@ -26,13 +26,19 @@ def choose_heuristic_move(game_state: typing.Dict) -> Move:
     
     scored_moves = [(move, _evaluate_move(game_state, move)) for move in candidates]
     best_move = max(scored_moves, key=lambda pair: pair[1])
-    return best_move
+    return best_move[0]
 
 
 def backwards_move(game_state: typing.Dict) -> Move:
     # # We've included code to prevent your Battlesnake from moving backwards
-    my_head = game_state["you"]["body"][0]  # Coordinates of your head
-    my_neck = game_state["you"]["body"][1]  # Coordinates of your "neck"
+    body = game_state["you"]["body"]
+
+    # If we don't have a neck yet, no backwards move restriction
+    if len(body) < 2:
+        return None
+
+    my_head = body[0]
+    my_neck = body[1]
 
     if my_neck["x"] < my_head["x"]:  # Neck is left of head, don't move left
         neck_move = "left"
@@ -51,7 +57,9 @@ def backwards_move(game_state: typing.Dict) -> Move:
 def _safe_moves(game_state: typing.Dict) -> typing.List[Move]:
     is_move_safe = {"up": True, "down": True, "left": True, "right": True}
     # Prevent moving backwards
-    is_move_safe[backwards_move(game_state)] = False
+    back = backwards_move(game_state)
+    if back:
+        is_move_safe[back] = False
 
     # prevent going into walls
     board_width = game_state['board']['width']
@@ -121,8 +129,23 @@ def _avoid_food(game_state: typing.Dict, candidates: typing.List[Move]) -> typin
                     candidates.remove("right")
     return candidates
 
+def hazard_cells(game_state: typing.Dict) -> typing.Set[typing.Tuple[int, int]]:
+    """ returns the set of all currently active hazard pit coordinates."""
+    return{
+        (h["x"], h["y"])
+        for h in game_state["board"].get("hazards", [])
+    }
         
-
+def hazard_damage_per_turn(game_state: typing.Dict) -> int:
+    """ falls back to 14 (one stack) if field isnt present, each stack adds 14 damage so fully stacked (4) = 56 per turn"""
+    settings = (
+        game_state
+        .get("game", {})
+        .get("ruleset", {})
+        .get("settings", {})
+    )
+    
+    return int(settings.get("hazardDamagePerTurn", 14))
 
 def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
     board = game_state["board"]
@@ -187,11 +210,31 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
             if _manhattan(next_pos, (enemy_head["x"], enemy_head["y"])) == 1:
                 danger_penalty += 4.0
 
+    # Feature 6: hazard pit penalty 
+    # penalised by scaling how much damage hazard will deal and how low our health is (lower = worse)
+    hazard_weight = 3.0
+    hazard_penalty = 0.0
+    
+    hazards = hazard_cells(game_state)
+    if next_pos in hazards:
+        damage = hazard_damage_per_turn(game_state)
+        # health ratio: fraction of health lost if in one turn inside the pit
+        health_ratio = damage / (max(1, health))
+        # clamp to [0,1] rankge so fully stacked pit at low health gives penalty of 1.0
+        hazard_penalty = hazard_weight * min(1.0, health_ratio)
 
-    score = free_space_weight * free_space + nearest_food_distance_weight * nearest_food_score + wall_clearence_weight * wall_clearance + head_to_head_weight * length_difference - danger_penalty
+    score = (
+        free_space_weight * free_space 
+        + nearest_food_distance_weight * nearest_food_score 
+        + wall_clearence_weight * wall_clearance 
+        + head_to_head_weight * length_difference 
+        - danger_penalty
+        - hazard_penalty   
+    )
 
     return score
 
+# ----- Utility functions -----
 
 def _enemy_head_threat_cells(snakes: typing.List[typing.Dict], my_length: int) -> typing.Set[typing.Tuple[int, int]]:
     threat_cells: typing.Set[typing.Tuple[int, int]] = set()
@@ -241,4 +284,6 @@ def _flood_fill_area(
 
     return len(visited)
 
+def _manhattan(a: typing.Tuple[int, int], b: typing.Tuple[int, int]) -> int:
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
