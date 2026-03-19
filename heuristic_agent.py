@@ -18,6 +18,9 @@ def choose_heuristic_move(game_state: typing.Dict) -> Move:
     """Return the best move according to a lightweight heuristic score."""
     candidates = _safe_moves(game_state)
 
+    # avoind food untill we need it
+    candidates = _avoid_food(game_state, candidates)
+
     if not candidates:
         return "down"
 
@@ -95,3 +98,27 @@ def _safe_moves(game_state: typing.Dict) -> typing.List[Move]:
 
     return [move for move, safe in is_move_safe.items() if safe]
 
+
+def _avoid_food(game_state: typing.Dict, candidates: typing.List[Move]) -> typing.List[Move]:
+    foods = game_state['board']['food']
+    my_head = game_state["you"]["body"][0]
+    if game_state["you"]["health"] >= 30:
+        for food in foods:
+            # If there's only one candidate move left, we have to take it even if it's food
+            if len(candidates) <= 1:
+                return candidates
+            if food["x"] == my_head["x"] and food["y"] == my_head["y"] + 1:
+                if "up" in candidates:
+                    candidates.remove("up")
+            elif food["x"] == my_head["x"] and food["y"] == my_head["y"] - 1:
+                if "down" in candidates:
+                    candidates.remove("down")
+            elif food["x"] == my_head["x"] - 1 and food["y"] == my_head["y"]:
+                if "left" in candidates:
+                    candidates.remove("left")
+            elif food["x"] == my_head["x"] + 1 and food["y"] == my_head["y"]:
+                if "right" in candidates:
+                    candidates.remove("right")
+    return candidates
+
+        
