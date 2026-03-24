@@ -207,16 +207,28 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
             danger_penalty += 4.0 + size_gap * 1.5
 
     # Feature 7: hazard pit penalty 
-    # penalised by scaling how much damage hazard will deal and how low our health is (lower = worse)
-    hazard_weight = 3.0
     hazard_penalty = 0.0
-    
-    if next_pos in hazards:
-        # health ratio: fraction of health lost if in one turn inside the pit
-        health_ratio = hazard_damage / (max(1, health))
-        # clamp to [0,1] rankge so fully stacked pit at low health gives penalty of 1.0
-        hazard_penalty = hazard_weight * min(1.0, health_ratio)
 
+    if next_pos in hazards:
+        # damage taken this turn (hazard + normal turn damage)
+        total_damage = hazard_damage + 1
+
+        # Case 1: Immediate death → absolutely forbid move
+        if total_damage >= health:
+            hazard_penalty = 1000.0  # effectively "never pick this"
+
+        else:
+            # Remaining health after stepping in hazard
+            remaining_health = health - total_damage
+
+            # Strong nonlinear penalty as health gets low
+            # (quadratic curve makes low health MUCH scarier)
+            danger_ratio = total_damage / health
+            hazard_penalty = 200 * (danger_ratio ** 2)
+
+            # Extra punishment if we'd be critically low
+            if remaining_health < 15:
+                hazard_penalty += 100
 
     # Feature 8: soft preference for center of board
     center_weight = 0.3
