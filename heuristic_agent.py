@@ -142,7 +142,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
    
     # Remove  tails that will vacate next turn from blocked set (all tails of snakes that didnt just eat)
     vacating = _tails_vacating_next_turn(board["snakes"])
-    occupied -= vacating
+    occupied = occupied - vacating # dont mutate original set
 
 
     # Feature 1: prefer positions with more reachable space.
