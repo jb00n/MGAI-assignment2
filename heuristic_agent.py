@@ -164,8 +164,10 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
     occupied = _occupied_cells(board["snakes"])
     own_tail = body[-1]
     # we can move into own tail because own tail moves out of curren t position on next turn, 
-    # TODO: unless we are eating food, then tail stays in place
-    occupied.discard((own_tail["x"], own_tail["y"]))
+    # unless we just ate food, then tail doesn't move and we would collide with it, so only remove tail from occupied if we didn't just eat food
+    just_ate = game_state["you"]["health"] == 100  # health resets to 100 on eating
+    if not just_ate:
+        occupied.discard((own_tail["x"], own_tail["y"]))
 
 
     # Feature 1: prefer positions with more reachable space.
