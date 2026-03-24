@@ -13,18 +13,22 @@ DIRECTIONS: typing.Dict[Move, typing.Tuple[int, int]] = {
     "right": (1, 0),
 }
 
-
 def choose_heuristic_move(game_state: typing.Dict) -> Move:
-    """Return the best move according to a lightweight heuristic score."""
     candidates = _safe_moves(game_state)
-
-
     if not candidates:
         return "down"
-    
-    scored_moves = [(move, _evaluate_move(game_state, move)) for move in candidates]
-    best_move = max(scored_moves, key=lambda pair: pair[1])
-    return best_move[0]
+
+    # Pre-compute once, pass into evaluator
+    board = game_state["board"]
+    occupied = _occupied_cells(board["snakes"])
+    hazards = hazard_cells(game_state)
+    damage = hazard_damage_per_turn(game_state)
+
+    scored_moves = [
+        (move, _evaluate_move(game_state, move, occupied, hazards, damage))
+        for move in candidates
+    ]
+    return max(scored_moves, key=lambda pair: pair[1])[0]
 
 
 def backwards_move(game_state: typing.Dict) -> typing.Optional[Move]:
@@ -123,7 +127,7 @@ def hazard_damage_per_turn(game_state: typing.Dict) -> int:
     
     return int(settings.get("hazardDamagePerTurn", 14))
 
-def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
+def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typing.Tuple[int, int]], hazards: typing.Set[typing.Tuple[int, int]], hazard_damage: int) -> float:
     board = game_state["board"]
     width = board["width"]
     height = board["height"]
@@ -137,7 +141,6 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
     dx, dy = DIRECTIONS[move]
     next_pos = (head["x"] + dx, head["y"] + dy)
 
-    occupied = _occupied_cells(board["snakes"])
    
     # Remove  tails that will vacate next turn from blocked set (all tails of snakes that didnt just eat)
     vacating = _tails_vacating_next_turn(board["snakes"])
@@ -208,11 +211,9 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
     hazard_weight = 3.0
     hazard_penalty = 0.0
     
-    hazards = hazard_cells(game_state)
     if next_pos in hazards:
-        damage = hazard_damage_per_turn(game_state)
         # health ratio: fraction of health lost if in one turn inside the pit
-        health_ratio = damage / (max(1, health))
+        health_ratio = hazard_damage / (max(1, health))
         # clamp to [0,1] rankge so fully stacked pit at low health gives penalty of 1.0
         hazard_penalty = hazard_weight * min(1.0, health_ratio)
 
