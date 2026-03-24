@@ -29,16 +29,16 @@ def choose_heuristic_move(game_state: typing.Dict) -> Move:
     return best_move[0]
 
 
-def backwards_move(game_state: typing.Dict) -> Move:
-    # # We've included code to prevent your Battlesnake from moving backwards
+def backwards_move(game_state: typing.Dict) -> typing.Optional[Move]:
+    # We've included code to prevent your Battlesnake from moving backwards
     body = game_state["you"]["body"]
-
-    # If we don't have a neck yet, no backwards move restriction
-    if len(body) < 2:
-        return None
 
     my_head = body[0]
     my_neck = body[1]
+
+    # at the start of the game, head and neck can be in the same position because of how the game engine spawns snakes. In this case we don't want to restrict any backwards move because we don't know which way we are moving yet.
+    if my_neck["x"] == my_head["x"] and my_neck["y"] == my_head["y"]:
+        return None
 
     if my_neck["x"] < my_head["x"]:  # Neck is left of head, don't move left
         neck_move = "left"
