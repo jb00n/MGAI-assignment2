@@ -216,6 +216,12 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
         # clamp to [0,1] rankge so fully stacked pit at low health gives penalty of 1.0
         hazard_penalty = hazard_weight * min(1.0, health_ratio)
 
+
+    # Feature 8: soft preference for center of board
+    center_weight = 0.3
+    center_x, center_y = (width - 1) / 2, (height - 1) / 2
+    center_distance = _manhattan(next_pos, (int(center_x), int(center_y)))
+
     
     # Feature 9: food avoidance when healthy soft penalty 
     food_positions = {(f["x"], f["y"]) for f in food}
@@ -228,6 +234,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
         + nearest_food_distance_weight * nearest_food_score 
         + wall_clearence_weight * wall_clearance 
         + head_to_head_weight * length_advantage_score 
+        + center_weight * center_distance
         - dead_end_penalty
         - danger_penalty
         - hazard_penalty  
