@@ -58,6 +58,8 @@ def backwards_move(game_state: typing.Dict) -> typing.Optional[Move]:
 
 def _safe_moves(game_state: typing.Dict) -> typing.List[Move]:
     is_move_safe = {"up": True, "down": True, "left": True, "right": True}
+    my_id = game_state["you"]["id"]
+
     # Prevent moving backwards
     back = backwards_move(game_state)
     if back:
