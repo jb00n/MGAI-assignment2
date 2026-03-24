@@ -44,7 +44,9 @@ def end(game_state: typing.Dict):
 # Valid moves are "up", "down", "left", or "right"
 # See https://docs.battlesnake.com/api/example-move for available data
 def move(game_state: typing.Dict) -> typing.Dict:
-    next_move = choose_mcts_move(game_state)
+    
+    # ====RANDOM ROLLOUT MCTS====
+    next_move = choose_mcts_move(game_state) 
  
     print(f"MOVE {game_state['turn']}: {next_move}")
     return {"move": next_move}

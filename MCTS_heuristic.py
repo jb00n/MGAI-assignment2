@@ -21,7 +21,7 @@ DELTAS = {
     "right": (1,  0),
 }
 
-
+# given a position and a direction, return the new position after moving in that direction
 def _apply(x: int, y: int, direction: str) -> typing.Tuple[int, int]:
     dx, dy = DELTAS[direction]
     return x + dx, y + dy
@@ -31,16 +31,16 @@ class SnakeState:
     __slots__ = ("id", "body", "health", "length", "alive")
 
     def __init__(self, d: typing.Dict):
-        self.id     = d["id"]
-        self.body   = [(s["x"], s["y"]) for s in d["body"]]
+        self.id = d["id"]
+        self.body = [(s["x"], s["y"]) for s in d["body"]]
         self.health = int(d["health"])
         self.length = int(d.get("length", len(self.body)))
-        self.alive  = True
+        self.alive = True
 
     def copy(self) -> "SnakeState":
-        s        = object.__new__(SnakeState)
-        s.id     = self.id
-        s.body   = self.body[:]
+        s = object.__new__(SnakeState)
+        s.id = self.id
+        s.body = self.body[:]
         s.health = self.health
         s.length = self.length
         s.alive  = self.alive
@@ -53,31 +53,31 @@ class SnakeState:
 
 class GameSim:
     def __init__(self, game_state: typing.Dict):
-        board           = game_state["board"]
-        self.width      = board["width"]
-        self.height     = board["height"]
-        self.food       = {(f["x"], f["y"]) for f in board["food"]}
-        self.hazards    = {(h["x"], h["y"]) for h in board.get("hazards", [])}
-        settings        = (game_state.get("game", {})
+        board = game_state["board"]
+        self.width = board["width"]
+        self.height = board["height"]
+        self.food = {(f["x"], f["y"]) for f in board["food"]}
+        self.hazards = {(h["x"], h["y"]) for h in board.get("hazards", [])}
+        settings = (game_state.get("game", {})
                                      .get("ruleset", {})
                                      .get("settings", {}))
         self.hazard_dmg = int(settings.get("hazardDamagePerTurn", 14))
-        self.min_food   = int(settings.get("minimumFood", 2))
-        self.snakes     = [SnakeState(s) for s in board["snakes"]]
-        self.my_id      = game_state["you"]["id"]
-        self.turn       = int(game_state["turn"])
+        self.min_food = int(settings.get("minimumFood", 2))
+        self.snakes = [SnakeState(s) for s in board["snakes"]]
+        self.my_id = game_state["you"]["id"]
+        self.turn = int(game_state["turn"])
 
     def copy(self) -> "GameSim":
-        g             = object.__new__(GameSim)
-        g.width       = self.width
-        g.height      = self.height
-        g.food        = self.food.copy()
-        g.hazards     = self.hazards.copy()
-        g.hazard_dmg  = self.hazard_dmg
-        g.min_food    = self.min_food
-        g.snakes      = [s.copy() for s in self.snakes]
-        g.my_id       = self.my_id
-        g.turn        = self.turn
+        g = object.__new__(GameSim)
+        g.width = self.width
+        g.height = self.height
+        g.food = self.food.copy()
+        g.hazards = self.hazards.copy()
+        g.hazard_dmg = self.hazard_dmg
+        g.min_food = self.min_food
+        g.snakes = [s.copy() for s in self.snakes]
+        g.my_id = self.my_id
+        g.turn = self.turn
         return g
 
     def alive_snakes(self) -> typing.List[SnakeState]:
@@ -161,11 +161,11 @@ class GameSim:
         head_groups: typing.Dict[typing.Tuple[int, int], typing.List[SnakeState]] = {}
         for snake in self.alive_snakes():
             head_groups.setdefault(snake.head, []).append(snake)
-        for pos, group in head_groups.items():
+        for group in head_groups.values():
             if len(group) > 1:
                 max_len = max(s.length for s in group)
                 for snake in group:
-                    if snake.length <= max_len:
+                    if snake.length < max_len:
                         snake.alive = False
 
         while len(self.food) < self.min_food:
@@ -186,10 +186,10 @@ def _evaluate(sim: GameSim) -> float:
     alive = sim.alive_snakes()
     if len(alive) == 1:
         return 1.0
-    total    = len(sim.snakes)
-    n_dead   = total - len(alive)
+    total = len(sim.snakes)
+    n_dead = total - len(alive)
     survival = n_dead / max(1, total - 1)
-    max_opp  = max((s.length for s in alive if s.id != sim.my_id), default=1)
+    max_opp = max((s.length for s in alive if s.id != sim.my_id), default=1)
     length_b = min(0.1, 0.1 * (me.length / max(1, max_opp) - 1))
     return min(1.0, max(0.0, survival * 0.5 + 0.5 + length_b - 0.5))
 
@@ -202,12 +202,12 @@ class Node:
                  "visits", "wins", "untried_moves")
 
     def __init__(self, game: GameSim, parent=None, move=None):
-        self.game    = game
+        self.game = game
         self.parent  = parent
-        self.move    = move
+        self.move = move
         self.children: typing.List["Node"] = []
         self.visits  = 0
-        self.wins    = 0.0
+        self.wins = 0.0
         me = game.my_snake()
         self.untried_moves = game.safe_moves(me) if (me and me.alive) else []
 
@@ -243,17 +243,17 @@ class Node:
         self.children.append(child)
         return child
 
-
+    # ======== HEURISTIC ROLLOUT =======
     def rollout(self) -> float:
         sim = self.game.copy()
         depth = 0
         while not sim.is_terminal() and depth < MAX_DEPTH:
             actions = {}
             for s in sim.alive_snakes():
-                # Reconstruct a game_state dict for the heuristic
+                # convert the internal simulation state into a structured dictionary format that heuristic function can understand
                 game_state_dict = _sim_to_game_state(sim, s.id)
                 if s.id == sim.my_id:
-                    move = choose_heuristic_move(game_state_dict)
+                    move = choose_heuristic_move(game_state_dict) # use the heuristic function to choose a move
                 else:
                     safe = sim.safe_moves(s)
                     move = random.choice(safe) if safe else "down"
@@ -273,12 +273,12 @@ class Node:
 def choose_mcts_heuristic_move(game_state: typing.Dict) -> str:
     """Run MCTS and return the best move direction."""
     root_game = GameSim(game_state)
-    root      = Node(root_game)
+    root = Node(root_game)
 
     if not root.untried_moves:
         return "down"
 
-    deadline   = time.time() + TIME_LIMIT_MS / 1000.0
+    deadline = time.time() + TIME_LIMIT_MS / 1000.0
     iterations = 0
 
     while time.time() < deadline:
@@ -287,7 +287,7 @@ def choose_mcts_heuristic_move(game_state: typing.Dict) -> str:
             node = node.best_child()
         if not node.is_terminal() and not node.is_fully_expanded():
             node = node.expand()
-        result = node.rollout()
+        result = node.rollout() # heuristic (not random)
         node.backpropagate(result)
         iterations += 1
 
@@ -304,28 +304,32 @@ def choose_mcts_heuristic_move(game_state: typing.Dict) -> str:
     )
     return best.move
 
+ # helper function to convert internal GameSim state into structured dictionary format for heuristic function 
 def _sim_to_game_state(sim: GameSim, pov_id: str) -> dict:
     snakes_list = []
     you_dict = None
     for s in sim.snakes:
         if not s.alive:
             continue
+        # snake dictionary entry for each snake in the simulation state with id, body, health, and length attributes
         entry = {
             "id": s.id,
             "body": [{"x": x, "y": y} for x, y in s.body],
             "health": s.health,
             "length": s.length,
         }
+        # identify own snake by matching the pov_id and place at the front of the snakes list
+        # while other snakes are added to list in arbitrary order
         if s.id == pov_id:
             you_dict = entry
         else:
             snakes_list.append(entry)
-
-    if you_dict:
-        snakes_list.insert(0, you_dict)
-
+    
+    # if for some reason our snake isnt found in the simulation state 
+    # create a default entry at front of list to avoid errors in heuristic function
     you = you_dict or snakes_list[0]
 
+    # dictionary format representing the game state for the heuristic function
     return {
         "turn": sim.turn,
         "you": you,
@@ -334,7 +338,7 @@ def _sim_to_game_state(sim: GameSim, pov_id: str) -> dict:
             "height": sim.height,
             "food": [{"x": x, "y": y} for x, y in sim.food],
             "hazards": [{"x": x, "y": y} for x, y in sim.hazards],
-            "snakes": snakes_list,
+            "snakes": ([you_dict] + snakes_list) if you_dict else snakes_list,
         },
         "game": {
             "ruleset": {

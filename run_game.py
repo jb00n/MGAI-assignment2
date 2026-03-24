@@ -11,7 +11,7 @@ CMD = [
     "-W", "11", "-H", "11",
     "-g", "standard",
     "-m", "hz_hazard_pits",
-    "--name", "Heuristic1", "--url", "http://127.0.0.1:8000",
+    "--name", "Heuristic 1", "--url", "http://127.0.0.1:8000",
     "--name", "MCTS1", "--url", "http://127.0.0.1:8001",
     "--name", "MCTS Heuristic 1", "--url", "http://127.0.0.1:8002",
     "--name", "MCTS Heuristic 2", "--url", "http://127.0.0.1:8003",
