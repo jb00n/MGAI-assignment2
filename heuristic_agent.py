@@ -162,13 +162,51 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
         dead_end_penalty = 50.0  # large enough to override all other features
     
 
-    # Feature 3: encourage food seeking when health is low.
-    nearest_food_distance = min(
-        _manhattan(next_pos, (f["x"], f["y"])) for f in food
-    )
+    # feature 3: prefer moves that get closer to food, but only if the food is safe (not in hazard or next to hazard when low health). If no safe food, dont encourage getting closer to unsafe food.
+    nearest_food_score = 0.0
+
+    safe_food_distances = []
+    risky_food_distances = []
+
+    for f in food:
+        food_pos = (f["x"], f["y"])
+        dist = _manhattan(next_pos, food_pos)
+
+        if food_pos in hazards:
+            total_damage = hazard_damage + 1
+
+            # If it kills us → NEVER consider
+            if total_damage >= health:
+                continue
+
+            remaining_health = health - total_damage
+
+            # Risky but survivable food
+            if remaining_health < 20:
+                risky_food_distances.append(dist)
+            else:
+                safe_food_distances.append(dist)
+        else:
+            # Normal safe food
+            safe_food_distances.append(dist)
+
+
     nearest_food_distance_weight = 0.6 if health >= 40 else 2.0
-    nearest_food_score = max(0, 10 - nearest_food_distance)
-    
+
+    if safe_food_distances:
+        # Prefer safe food
+        nearest_food_distance = min(safe_food_distances)
+        nearest_food_score = max(0, 10 - nearest_food_distance)
+
+    elif risky_food_distances:
+        # No safe food → go for risky food (but weaker reward)
+        nearest_food_distance = min(risky_food_distances)
+        nearest_food_score = 0.5 * max(0, 10 - nearest_food_distance)
+
+    else:
+        # No reachable food at all
+        nearest_food_score = 0
+        
 
     # Feature 4: avoid walls to reduce trap risk.
     wall_clearence_weight = 0.5
