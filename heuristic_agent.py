@@ -235,7 +235,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
         + nearest_food_distance_weight * nearest_food_score 
         + wall_clearence_weight * wall_clearance 
         + head_to_head_weight * length_advantage_score 
-        + center_weight * center_distance
+        - center_weight * center_distance
         - dead_end_penalty
         - danger_penalty
         - hazard_penalty  
