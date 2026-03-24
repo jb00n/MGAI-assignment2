@@ -18,8 +18,6 @@ def choose_heuristic_move(game_state: typing.Dict) -> Move:
     """Return the best move according to a lightweight heuristic score."""
     candidates = _safe_moves(game_state)
 
-    # avoind food untill we need it
-    candidates = _avoid_food(game_state, candidates)
 
     if not candidates:
         return "down"
@@ -106,28 +104,6 @@ def _safe_moves(game_state: typing.Dict) -> typing.List[Move]:
 
     return [move for move, safe in is_move_safe.items() if safe]
 
-
-def _avoid_food(game_state: typing.Dict, candidates: typing.List[Move]) -> typing.List[Move]:
-    foods = game_state['board']['food']
-    my_head = game_state["you"]["body"][0]
-    if game_state["you"]["health"] >= 30:
-        for food in foods:
-            # If there's only one candidate move left, we have to take it even if it's food
-            if len(candidates) <= 1:
-                return candidates
-            if food["x"] == my_head["x"] and food["y"] == my_head["y"] + 1:
-                if "up" in candidates:
-                    candidates.remove("up")
-            elif food["x"] == my_head["x"] and food["y"] == my_head["y"] - 1:
-                if "down" in candidates:
-                    candidates.remove("down")
-            elif food["x"] == my_head["x"] - 1 and food["y"] == my_head["y"]:
-                if "left" in candidates:
-                    candidates.remove("left")
-            elif food["x"] == my_head["x"] + 1 and food["y"] == my_head["y"]:
-                if "right" in candidates:
-                    candidates.remove("right")
-    return candidates
 
 def hazard_cells(game_state: typing.Dict) -> typing.Set[typing.Tuple[int, int]]:
     """ returns the set of all currently active hazard pit coordinates."""
@@ -240,6 +216,13 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
         # clamp to [0,1] rankge so fully stacked pit at low health gives penalty of 1.0
         hazard_penalty = hazard_weight * min(1.0, health_ratio)
 
+    
+    # Feature 9: food avoidance when healthy soft penalty 
+    food_positions = {(f["x"], f["y"]) for f in food}
+    food_avoidance_penalty = 0.0
+    if next_pos in food_positions and health >= 30:
+        food_avoidance_penalty = 3.0  # soft penalty, overrideable if all moves are bad
+        
     score = (
         free_space_weight * free_space_normalized 
         + nearest_food_distance_weight * nearest_food_score 
@@ -247,7 +230,8 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
         + head_to_head_weight * length_advantage_score 
         - dead_end_penalty
         - danger_penalty
-        - hazard_penalty   
+        - hazard_penalty  
+        - food_avoidance_penalty 
     )
 
     return score
