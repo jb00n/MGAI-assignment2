@@ -162,12 +162,10 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
     next_pos = (head["x"] + dx, head["y"] + dy)
 
     occupied = _occupied_cells(board["snakes"])
-    own_tail = body[-1]
-    # we can move into own tail because own tail moves out of curren t position on next turn, 
-    # unless we just ate food, then tail doesn't move and we would collide with it, so only remove tail from occupied if we didn't just eat food
-    just_ate = game_state["you"]["health"] == 100  # health resets to 100 on eating
-    if not just_ate:
-        occupied.discard((own_tail["x"], own_tail["y"]))
+   
+    # Remove  tails that will vacate next turn from blocked set (all tails of snakes that didnt just eat)
+    vacating = _tails_vacating_next_turn(board["snakes"])
+    occupied -= vacating
 
 
     # Feature 1: prefer positions with more reachable space.
@@ -266,6 +264,23 @@ def _occupied_cells(snakes: typing.List[typing.Dict]) -> typing.Set[typing.Tuple
         for segment in snake["body"]:
             occupied.add((segment["x"], segment["y"]))
     return occupied
+
+
+def _tails_vacating_next_turn(
+    snakes: typing.List[typing.Dict],
+) -> typing.Set[typing.Tuple[int, int]]:
+    """
+    Returns tail positions that will be vacated next turn.
+    A tail does NOT vacate if the snake just ate (health == 100).
+    """
+    vacating = set()
+    for snake in snakes:
+        # If health is 100, the snake just ate and its tail stays
+        if snake.get("health", 0) == 100:
+            continue
+        tail = snake["body"][-1]
+        vacating.add((tail["x"], tail["y"]))
+    return vacating
 
 
 def _flood_fill_area(
