@@ -169,9 +169,13 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
 
 
     # Feature 1: prefer positions with more reachable space.
-    free_space_weight = 1.8
+    free_space_weight = 180
     # flood fill algorithm to find how much free space is reachable from the next position. This helps avoid moves that lead to traps.
     free_space = _flood_fill_area(next_pos, occupied, width, height)
+    # normalize
+    max_area = width * height
+    free_space_normalized = free_space / max_area  # now in range [0.0, 1.0]
+
     
 
     # Feature 2: encourage food seeking when health is low.
