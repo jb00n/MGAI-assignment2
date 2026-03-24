@@ -90,10 +90,7 @@ def _safe_moves(game_state: typing.Dict) -> typing.List[Move]:
             is_move_safe["right"] = False
 
 
-    # prevent colliding with other snakes
-    opponents = game_state['board']['snakes']
-    for snake in opponents[1:]: # start at 2nd snake because i am first snake in list
-        for segment in snake['body']:
+        for segment in snake['body'][:-1]:  # exclude tail
             if segment["x"] == my_head["x"] and segment["y"] == my_head["y"] + 1:
                 is_move_safe["up"] = False
             elif segment["x"] == my_head["x"] and segment["y"] == my_head["y"] - 1:
