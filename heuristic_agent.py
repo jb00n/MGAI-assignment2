@@ -176,9 +176,14 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
     max_area = width * height
     free_space_normalized = free_space / max_area  # now in range [0.0, 1.0]
 
+
+    # Feature 2: Hard penalty for moves leading into spaces too small to survive
+    dead_end_penalty = 0.0
+    if free_space < len(body):
+        dead_end_penalty = 50.0  # large enough to override all other features
     
 
-    # Feature 2: encourage food seeking when health is low.
+    # Feature 3: encourage food seeking when health is low.
     nearest_food_distance = min(
         _manhattan(next_pos, (f["x"], f["y"])) for f in food
     )
@@ -186,7 +191,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
     nearest_food_score = max(0, 10 - nearest_food_distance)
     
 
-    # Feature 3: avoid walls to reduce trap risk.
+    # Feature 4: avoid walls to reduce trap risk.
     wall_clearence_weight = 0.5
     wall_clearance = min(
         next_pos[0],
@@ -195,7 +200,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
         (height - 1) - next_pos[1],
     )
 
-  # Feature 4: reward moving next to a weaker enemy head (aggression)
+  # Feature 5: reward moving next to a weaker enemy head (aggression)
     head_to_head_weight = 1.5
     length_advantage_score = 0.0
     my_length = len(body)
@@ -209,7 +214,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
             # Scale reward: bigger size gap = more confident kill
             length_advantage_score += (my_length - enemy_length)
 
-    # Feature 5: penalise moving next to a stronger/equal enemy head
+    # Feature 6: penalise moving next to a stronger/equal enemy head
     danger_penalty = 0.0
     for snake in board["snakes"]:
         if snake["id"] == you["id"]:
@@ -222,7 +227,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
             size_gap = enemy_length - my_length
             danger_penalty += 4.0 + size_gap * 1.5
 
-    # Feature 6: hazard pit penalty 
+    # Feature 7: hazard pit penalty 
     # penalised by scaling how much damage hazard will deal and how low our health is (lower = worse)
     hazard_weight = 3.0
     hazard_penalty = 0.0
@@ -236,10 +241,11 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
         hazard_penalty = hazard_weight * min(1.0, health_ratio)
 
     score = (
-        free_space_weight * free_space 
+        free_space_weight * free_space_normalized 
         + nearest_food_distance_weight * nearest_food_score 
         + wall_clearence_weight * wall_clearance 
         + head_to_head_weight * length_advantage_score 
+        - dead_end_penalty
         - danger_penalty
         - hazard_penalty   
     )
