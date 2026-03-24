@@ -193,24 +193,32 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
         (height - 1) - next_pos[1],
     )
 
-    # Feature 4: when snake is longer than others, be more aggressive and allow moves that step next to enemy heads, to try to cut them off and win by head-to-head collision.
+  # Feature 4: reward moving next to a weaker enemy head (aggression)
     head_to_head_weight = 1.5
-    length_difference = 0
+    length_advantage_score = 0.0
     my_length = len(body)
-    for snake in board["snakes"][1:]: # skip first snake because it's me
-        if len(snake["body"]) < my_length:
-            enemy_head = snake["body"][0]
-            if _manhattan(next_pos, (enemy_head["x"], enemy_head["y"])) == 1:
-                length_difference = my_length - len(snake["body"])
+    for snake in board["snakes"]:
+        if snake["id"] == you["id"]:
+            continue
+        enemy_length = len(snake["body"])
+        enemy_head = snake["body"][0]
+        dist = _manhattan(next_pos, (enemy_head["x"], enemy_head["y"]))
+        if dist == 1 and enemy_length < my_length:
+            # Scale reward: bigger size gap = more confident kill
+            length_advantage_score += (my_length - enemy_length)
 
-
-    # Feature 5: avoid stepping next to stronger enemy heads.
+    # Feature 5: penalise moving next to a stronger/equal enemy head
     danger_penalty = 0.0
-    for snake in board["snakes"][1:]: # skip first snake because it's me
-        if len(snake["body"]) >= my_length:
-            enemy_head = snake["body"][0]
-            if _manhattan(next_pos, (enemy_head["x"], enemy_head["y"])) == 1:
-                danger_penalty += 4.0
+    for snake in board["snakes"]:
+        if snake["id"] == you["id"]:
+            continue
+        enemy_length = len(snake["body"])
+        enemy_head = snake["body"][0]
+        dist = _manhattan(next_pos, (enemy_head["x"], enemy_head["y"]))
+        if dist == 1 and enemy_length >= my_length:
+            # Scale penalty: much longer enemy = much more dangerous
+            size_gap = enemy_length - my_length
+            danger_penalty += 4.0 + size_gap * 1.5
 
     # Feature 6: hazard pit penalty 
     # penalised by scaling how much damage hazard will deal and how low our health is (lower = worse)
@@ -229,7 +237,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move) -> float:
         free_space_weight * free_space 
         + nearest_food_distance_weight * nearest_food_score 
         + wall_clearence_weight * wall_clearance 
-        + head_to_head_weight * length_difference 
+        + head_to_head_weight * length_advantage_score 
         - danger_penalty
         - hazard_penalty   
     )
