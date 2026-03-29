@@ -1,11 +1,14 @@
+from logging import root
 import math
 import random
 import time
 import typing
+from heuristic_agent import _evaluate_move
 
 # Hyperparameters
 
 UCB_C = 1.41
+BIAS_C = 3.0
 MAX_DEPTH = 20
 TIME_LIMIT_MS = 850
 
@@ -199,7 +202,7 @@ def _evaluate(sim: GameSim) -> float:
 
 class Node:
     __slots__ = ("game", "parent", "move", "children",
-                 "visits", "wins", "untried_moves")
+                 "visits", "wins", "untried_moves", "heuristic_score")
 
     def __init__(self, game: GameSim, parent=None, move=None):
         self.game    = game
@@ -210,12 +213,16 @@ class Node:
         self.wins    = 0.0
         me = game.my_snake()
         self.untried_moves = game.safe_moves(me) if (me and me.alive) else []
+        self.heuristic_score = 0.0
+        
 
     def ucb1(self) -> float:
         if self.visits == 0:
             return float("inf")
-        return (self.wins / self.visits +
-                UCB_C * math.sqrt(math.log(self.parent.visits) / self.visits))
+        exploitation = self.wins / self.visits
+        exploration  = UCB_C * math.sqrt(math.log(self.parent.visits) / self.visits)
+        bias         = BIAS_C * self.heuristic_score / (self.visits + 1)
+        return exploitation + exploration + bias
 
     def is_fully_expanded(self) -> bool:
         return len(self.untried_moves) == 0
@@ -226,12 +233,12 @@ class Node:
     def best_child(self) -> "Node":
         return max(self.children, key=lambda n: n.ucb1())
 
-    def expand(self) -> "Node":
+    def expand(self, current_gs: typing.Dict) -> "Node":
         direction = self.untried_moves.pop(
             random.randrange(len(self.untried_moves))
         )
         new_game = self.game.copy()
-        actions: typing.Dict[str, str] = {}
+        actions = {}
         for snake in new_game.alive_snakes():
             if snake.id == new_game.my_id:
                 actions[snake.id] = direction
@@ -240,6 +247,31 @@ class Node:
                 actions[snake.id] = random.choice(safe) if safe else "down"
         new_game.step(actions)
         child = Node(new_game, parent=self, move=direction)
+
+        # Use the CURRENT node's game state (not root) for heuristic scoring
+        board = current_gs["board"]
+        occupied = {
+            (seg["x"], seg["y"])
+            for snake in board["snakes"]
+            for seg in snake["body"]
+        }
+        hazards = {(h["x"], h["y"]) for h in board.get("hazards", [])}
+        damage = int(
+            current_gs.get("game", {})
+                    .get("ruleset", {})
+                    .get("settings", {})
+                    .get("hazardDamagePerTurn", 14)
+        )
+        raw_scores = [
+            _evaluate_move(current_gs, m, occupied, hazards, damage)
+            for m in (self.untried_moves + [direction])  # all siblings + this child
+        ]
+        min_s = min(raw_scores)
+        max_s = max(raw_scores)
+        spread = max_s - min_s if max_s != min_s else 1.0
+        raw = _evaluate_move(current_gs, direction, occupied, hazards, damage)
+        child.heuristic_score = (raw - min_s) / spread  # normalized [0, 1]
+
         self.children.append(child)
         return child
 
@@ -279,7 +311,9 @@ def choose_mcts_move(game_state: typing.Dict) -> str:
         while not node.is_terminal() and node.is_fully_expanded():
             node = node.best_child()
         if not node.is_terminal() and not node.is_fully_expanded():
-            node = node.expand()
+            # Reconstruct current game state from this node's sim, from our snake's POV
+            current_gs = _sim_to_game_state(node.game, node.game.my_id)
+            node = node.expand(current_gs=current_gs)
         result = node.rollout()
         node.backpropagate(result)
         iterations += 1
@@ -295,4 +329,49 @@ def choose_mcts_move(game_state: typing.Dict) -> str:
         f"visits={best.visits} "
         f"winrate={best.wins / best.visits:.2f}"
     )
+    
+    print(f"  => chosen: {best.move}")
     return best.move
+
+
+def _sim_to_game_state(sim: GameSim, pov_id: str) -> dict:
+    snakes_list = []
+    you_dict = None
+    for s in sim.snakes:
+        if not s.alive:
+            continue
+        entry = {
+            "id": s.id,
+            "body": [{"x": x, "y": y} for x, y in s.body],
+            "health": s.health,
+            "length": s.length,
+        }
+        if s.id == pov_id:
+            you_dict = entry
+        else:
+            snakes_list.append(entry)
+
+    if you_dict:
+        snakes_list.insert(0, you_dict)
+
+    you = you_dict or snakes_list[0]
+
+    return {
+        "turn": sim.turn,
+        "you": you,
+        "board": {
+            "width": sim.width,
+            "height": sim.height,
+            "food": [{"x": x, "y": y} for x, y in sim.food],
+            "hazards": [{"x": x, "y": y} for x, y in sim.hazards],
+            "snakes": snakes_list,
+        },
+        "game": {
+            "ruleset": {
+                "settings": {
+                    "hazardDamagePerTurn": sim.hazard_dmg,
+                    "minimumFood": sim.min_food,
+                }
+            }
+        },
+    }
