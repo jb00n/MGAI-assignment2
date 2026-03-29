@@ -12,7 +12,7 @@
  
 import typing
  
-from MCTS_heuristic import choose_mcts_heuristic_move
+from MCTS_progressive_bias import choose_mcts_progressive_bias_move
  
  
 # info is called when you create your Battlesnake on play.battlesnake.com
@@ -23,8 +23,8 @@ def info() -> typing.Dict:
  
     return {
         "apiversion": "1",
-        "author": "Alexa",  # TODO: Your Battlesnake Username
-        "color": "#AA64D0",  # TODO: Choose color
+        "author": "Jessica",  # TODO: Your Battlesnake Username
+        "color": "#A7D064",  # TODO: Choose color
         "head": "default",  # TODO: Choose head
         "tail": "default",  # TODO: Choose tail
     }
@@ -44,7 +44,7 @@ def end(game_state: typing.Dict):
 # Valid moves are "up", "down", "left", or "right"
 # See https://docs.battlesnake.com/api/example-move for available data
 def move(game_state: typing.Dict) -> typing.Dict:
-    next_move = choose_mcts_heuristic_move(game_state)
+    next_move = choose_mcts_progressive_bias_move(game_state)
  
     print(f"MOVE {game_state['turn']}: {next_move}")
     return {"move": next_move}

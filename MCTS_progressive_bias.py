@@ -295,7 +295,7 @@ class Node:
 
 # -------- MCTS Move Function ------------
 
-def choose_mcts_move(game_state: typing.Dict) -> str:
+def choose_mcts_progressive_bias_move(game_state: typing.Dict) -> str:
     """Run MCTS and return the best move direction."""
     root_game = GameSim(game_state)
     root      = Node(root_game)
