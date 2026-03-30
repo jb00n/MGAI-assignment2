@@ -249,15 +249,18 @@ class Node:
         depth = 0
         while not sim.is_terminal() and depth < MAX_DEPTH:
             actions = {}
+            occupied = sim._occupied()
             for s in sim.alive_snakes():
-                # convert the internal simulation state into a structured dictionary format that heuristic function can understand
-                game_state_dict = _sim_to_game_state(sim, s.id)
+                safe = sim.safe_moves(s)
                 if s.id == sim.my_id:
-                    move = choose_heuristic_move(game_state_dict) # use the heuristic function to choose a move
+                    # heuristic policy for our snake only
+                    current_gs = _sim_to_game_state(sim, s.id)
+                    actions[s.id] = max(safe, key=lambda m: _evaluate_move(
+                        current_gs, m, occupied, sim.hazards, sim.hazard_dmg
+                    ))
                 else:
-                    safe = sim.safe_moves(s)
-                    move = random.choice(safe) if safe else "down"
-                actions[s.id] = move
+                    # random policy for opponents
+                    actions[s.id] = random.choice(safe) if safe else "down"
             sim.step(actions)
             depth += 1
         return _evaluate(sim)
