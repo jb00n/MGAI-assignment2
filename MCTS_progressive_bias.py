@@ -1,10 +1,9 @@
-from logging import root
 import math
 import random
 import time
 import typing
-from heuristic_agent import _evaluate_move
 
+from heuristic_agent import _evaluate_move
 # Hyperparameters
 
 UCB_C = 1.41
@@ -23,7 +22,7 @@ DELTAS = {
     "right": (1,  0),
 }
 
-
+# given a position and a direction, return the new position after moving in that direction
 def _apply(x: int, y: int, direction: str) -> typing.Tuple[int, int]:
     dx, dy = DELTAS[direction]
     return x + dx, y + dy
@@ -55,12 +54,12 @@ class SnakeState:
 
 class GameSim:
     def __init__(self, game_state: typing.Dict):
-        board           = game_state["board"]
-        self.width      = board["width"]
-        self.height     = board["height"]
-        self.food       = {(f["x"], f["y"]) for f in board["food"]}
-        self.hazards    = {(h["x"], h["y"]) for h in board.get("hazards", [])}
-        settings        = (game_state.get("game", {})
+        board        = game_state["board"]
+        self.width   = board["width"]
+        self.height  = board["height"]
+        self.food    = {(f["x"], f["y"]) for f in board["food"]}
+        self.hazards = {(h["x"], h["y"]) for h in board.get("hazards", [])}
+        settings     = (game_state.get("game", {})
                                      .get("ruleset", {})
                                      .get("settings", {}))
         self.hazard_dmg = int(settings.get("hazardDamagePerTurn", 14))
@@ -70,23 +69,22 @@ class GameSim:
         self.turn       = int(game_state["turn"])
 
     def copy(self) -> "GameSim":
-        g             = object.__new__(GameSim)
-        g.width       = self.width
-        g.height      = self.height
-        g.food        = self.food.copy()
-        g.hazards     = self.hazards.copy()
-        g.hazard_dmg  = self.hazard_dmg
-        g.min_food    = self.min_food
-        g.snakes      = [s.copy() for s in self.snakes]
-        g.my_id       = self.my_id
-        g.turn        = self.turn
+        g            = object.__new__(GameSim)
+        g.width      = self.width
+        g.height     = self.height
+        g.food       = self.food.copy()
+        g.hazards    = self.hazards.copy()
+        g.hazard_dmg = self.hazard_dmg
+        g.min_food   = self.min_food
+        g.snakes     = [s.copy() for s in self.snakes]
+        g.my_id      = self.my_id
+        g.turn       = self.turn
         return g
 
     def alive_snakes(self) -> typing.List[SnakeState]:
         return [s for s in self.snakes if s.alive]
 
     def my_snake(self) -> typing.Optional[SnakeState]:
-        # TODO: we can change this, first snake is always my snake. Returning 1st is faster
         for s in self.snakes:
             if s.id == self.my_id:
                 return s
@@ -164,11 +162,11 @@ class GameSim:
         head_groups: typing.Dict[typing.Tuple[int, int], typing.List[SnakeState]] = {}
         for snake in self.alive_snakes():
             head_groups.setdefault(snake.head, []).append(snake)
-        for pos, group in head_groups.items():
+        for group in head_groups.values():
             if len(group) > 1:
                 max_len = max(s.length for s in group)
                 for snake in group:
-                    if snake.length <= max_len:
+                    if snake.length < max_len:
                         snake.alive = False
 
         while len(self.food) < self.min_food:
@@ -202,26 +200,25 @@ def _evaluate(sim: GameSim) -> float:
 
 class Node:
     __slots__ = ("game", "parent", "move", "children",
-                 "visits", "wins", "untried_moves", "heuristic_score")
+                 "visits", "wins", "untried_moves", "heuristic_score")  # add heuristic_score
 
     def __init__(self, game: GameSim, parent=None, move=None):
-        self.game    = game
+        self.game = game
         self.parent  = parent
-        self.move    = move
+        self.move = move
         self.children: typing.List["Node"] = []
         self.visits  = 0
-        self.wins    = 0.0
+        self.wins = 0.0
         me = game.my_snake()
         self.untried_moves = game.safe_moves(me) if (me and me.alive) else []
-        self.heuristic_score = 0.0
-        
+        self.heuristic_score = 0.0  # H_i in Chaslot et al., set at expansion time
 
     def ucb1(self) -> float:
         if self.visits == 0:
             return float("inf")
         exploitation = self.wins / self.visits
         exploration  = UCB_C * math.sqrt(math.log(self.parent.visits) / self.visits)
-        bias         = BIAS_C * self.heuristic_score / (self.visits + 1)
+        bias         = BIAS_C * self.heuristic_score / (self.visits + 1)  # Chaslot eq. 3.2
         return exploitation + exploration + bias
 
     def is_fully_expanded(self) -> bool:
@@ -238,7 +235,7 @@ class Node:
             random.randrange(len(self.untried_moves))
         )
         new_game = self.game.copy()
-        actions = {}
+        actions: typing.Dict[str, str] = {}
         for snake in new_game.alive_snakes():
             if snake.id == new_game.my_id:
                 actions[snake.id] = direction
@@ -248,62 +245,75 @@ class Node:
         new_game.step(actions)
         child = Node(new_game, parent=self, move=direction)
 
-        # Use the CURRENT node's game state (not root) for heuristic scoring
-        board = current_gs["board"]
+        # Compute H_i for this child using the CURRENT node's game state (not root)
+        # This gives an accurate heuristic score at the depth where this node lives
         occupied = {
             (seg["x"], seg["y"])
-            for snake in board["snakes"]
+            for snake in current_gs["board"]["snakes"]
             for seg in snake["body"]
         }
-        hazards = {(h["x"], h["y"]) for h in board.get("hazards", [])}
+        hazards = {(h["x"], h["y"]) for h in current_gs["board"].get("hazards", [])}
         damage = int(
             current_gs.get("game", {})
-                    .get("ruleset", {})
-                    .get("settings", {})
-                    .get("hazardDamagePerTurn", 14)
+                      .get("ruleset", {})
+                      .get("settings", {})
+                      .get("hazardDamagePerTurn", 14)
         )
+
+        # Compute raw scores for all candidate moves (remaining untried + this one)
+        # so we can normalize H_i relative to siblings
+        all_moves = self.untried_moves + [direction]
         raw_scores = [
             _evaluate_move(current_gs, m, occupied, hazards, damage)
-            for m in (self.untried_moves + [direction])  # all siblings + this child
+            for m in all_moves
         ]
         min_s = min(raw_scores)
         max_s = max(raw_scores)
         spread = max_s - min_s if max_s != min_s else 1.0
-        raw = _evaluate_move(current_gs, direction, occupied, hazards, damage)
-        child.heuristic_score = (raw - min_s) / spread  # normalized [0, 1]
+
+        child.heuristic_score = (raw_scores[-1] - min_s) / spread  # normalized to [0, 1]
 
         self.children.append(child)
         return child
 
+    # rollout stays identical to heuristic MCTS
     def rollout(self) -> float:
         sim   = self.game.copy()
         depth = 0
         while not sim.is_terminal() and depth < MAX_DEPTH:
             actions = {}
+            occupied = sim._occupied()
             for s in sim.alive_snakes():
                 safe = sim.safe_moves(s)
-                actions[s.id] = random.choice(safe) if safe else "down"
+                if s.id == sim.my_id:
+                    # heuristic policy for our snake only
+                    current_gs = _sim_to_game_state(sim, s.id)
+                    actions[s.id] = max(safe, key=lambda m: _evaluate_move(
+                        current_gs, m, occupied, sim.hazards, sim.hazard_dmg
+                    ))
+                else:
+                    # random policy for opponents
+                    actions[s.id] = random.choice(safe) if safe else "down"
             sim.step(actions)
             depth += 1
         return _evaluate(sim)
-
+    
     def backpropagate(self, result: float) -> None:
         self.visits += 1
         self.wins   += result
         if self.parent:
             self.parent.backpropagate(result)
 
-# -------- MCTS Move Function ------------
 
+# -------- MCTS Move Function ------------
 def choose_mcts_progressive_bias_move(game_state: typing.Dict) -> str:
-    """Run MCTS and return the best move direction."""
     root_game = GameSim(game_state)
-    root      = Node(root_game)
+    root = Node(root_game)
 
     if not root.untried_moves:
         return "down"
 
-    deadline   = time.time() + TIME_LIMIT_MS / 1000.0
+    deadline = time.time() + TIME_LIMIT_MS / 1000.0
     iterations = 0
 
     while time.time() < deadline:
@@ -311,7 +321,7 @@ def choose_mcts_progressive_bias_move(game_state: typing.Dict) -> str:
         while not node.is_terminal() and node.is_fully_expanded():
             node = node.best_child()
         if not node.is_terminal() and not node.is_fully_expanded():
-            # Reconstruct current game state from this node's sim, from our snake's POV
+            # reconstruct game state at this node's depth for accurate H_i
             current_gs = _sim_to_game_state(node.game, node.game.my_id)
             node = node.expand(current_gs=current_gs)
         result = node.rollout()
@@ -324,38 +334,40 @@ def choose_mcts_progressive_bias_move(game_state: typing.Dict) -> str:
 
     best = max(root.children, key=lambda n: n.visits)
     print(
-        f"MCTS: {iterations} sims | "
+        f"MCTS ProgBias: {iterations} sims | "
         f"best={best.move} "
         f"visits={best.visits} "
         f"winrate={best.wins / best.visits:.2f}"
     )
-    
-    print(f"  => chosen: {best.move}")
     return best.move
 
 
+ # helper function to convert internal GameSim state into structured dictionary format for heuristic function 
 def _sim_to_game_state(sim: GameSim, pov_id: str) -> dict:
     snakes_list = []
     you_dict = None
     for s in sim.snakes:
         if not s.alive:
             continue
+        # snake dictionary entry for each snake in the simulation state with id, body, health, and length attributes
         entry = {
             "id": s.id,
             "body": [{"x": x, "y": y} for x, y in s.body],
             "health": s.health,
             "length": s.length,
         }
+        # identify own snake by matching the pov_id and place at the front of the snakes list
+        # while other snakes are added to list in arbitrary order
         if s.id == pov_id:
             you_dict = entry
         else:
             snakes_list.append(entry)
-
-    if you_dict:
-        snakes_list.insert(0, you_dict)
-
+    
+    # if for some reason our snake isnt found in the simulation state 
+    # create a default entry at front of list to avoid errors in heuristic function
     you = you_dict or snakes_list[0]
 
+    # dictionary format representing the game state for the heuristic function
     return {
         "turn": sim.turn,
         "you": you,
@@ -364,7 +376,7 @@ def _sim_to_game_state(sim: GameSim, pov_id: str) -> dict:
             "height": sim.height,
             "food": [{"x": x, "y": y} for x, y in sim.food],
             "hazards": [{"x": x, "y": y} for x, y in sim.hazards],
-            "snakes": snakes_list,
+            "snakes": ([you_dict] + snakes_list) if you_dict else snakes_list,
         },
         "game": {
             "ruleset": {
