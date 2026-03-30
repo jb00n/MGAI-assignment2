@@ -9,7 +9,7 @@ from heuristic_agent import choose_heuristic_move, _evaluate_move
 UCB_C = 1.41
 MAX_DEPTH = 20
 TIME_LIMIT_MS = 850
-ALPHA = 20
+ALPHA = 200
 
 # Directions
 
@@ -271,13 +271,17 @@ class Node:
 
     def backpropagate(self, result: float) -> None:
         self.visits += 1
-        self.wins   += (result - self.wins)/self.visits
+        # self.wins   += (result - self.wins)/self.visits
+        self.wins = (self.wins*(self.visits-1)+result)/self.visits
 
-        used_actions = ()
-        for action, _ in self.sim_moves:
+
+        used_actions = set()
+        for action in self.sim_moves:
             if action not in used_actions:
                 self.visits_rave += 1
-                self.wins_rave += (0.5 - self.wins_rave)/self.visits_rave
+                # self.wins_rave += (result - self.wins_rave)/self.visits_rave
+                self.wins_rave = (self.wins_rave*(self.visits_rave-1)+result)/self.visits_rave
+                used_actions.add(action)
 
         if self.parent:
             self.parent.backpropagate(result)
