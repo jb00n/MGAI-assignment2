@@ -251,13 +251,16 @@ class Node:
             actions = {}
             occupied = sim._occupied()
             for s in sim.alive_snakes():
-                current_gs = _sim_to_game_state(sim, s.id)
                 safe = sim.safe_moves(s)
-                # use heuristic for all snakes, not just ours
-                best = max(safe, key=lambda m: _evaluate_move(
-                    current_gs, m, occupied, sim.hazards, sim.hazard_dmg
-                ))
-                actions[s.id] = best
+                if s.id == sim.my_id:
+                    # heuristic policy for our snake only
+                    current_gs = _sim_to_game_state(sim, s.id)
+                    actions[s.id] = max(safe, key=lambda m: _evaluate_move(
+                        current_gs, m, occupied, sim.hazards, sim.hazard_dmg
+                    ))
+                else:
+                    # random policy for opponents
+                    actions[s.id] = random.choice(safe) if safe else "down"
             sim.step(actions)
             depth += 1
         return _evaluate(sim)
