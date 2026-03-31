@@ -218,8 +218,13 @@ class Node:
     def rave(self) -> float:
         if self.visits == 0:
             return float("inf")
-        beta = ALPHA/(ALPHA+self.visits)
-        return ((1-beta)*self.wins / self.visits + beta * self.wins_rave/self.visits_rave +
+        if self.visits_rave == 0:
+            # fall back to plain UCB1 when no RAVE data is available yet
+            return (self.wins / self.visits +
+                    UCB_C * math.sqrt(math.log(self.parent.visits) / self.visits))
+        beta = ALPHA / (ALPHA + self.visits)
+        return ((1 - beta) * self.wins / self.visits + 
+                beta * self.wins_rave / self.visits_rave +
                 UCB_C * math.sqrt(math.log(self.parent.visits) / self.visits))
 
     def is_fully_expanded(self) -> bool:
