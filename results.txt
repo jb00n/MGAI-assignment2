@@ -1,0 +1,8 @@
+Tournament: 100 games | 4 snakes/game
+Agent                 Games   Wins    Win%      ELO  TrueSkill mu TrueSkill sigma  Conservative
+-------------------------------------------------------------------------------------
+mcts_progressive_bias     79     27   34.2%   1003.0        27.518           0.741        25.294
+mcts                     81     27   33.3%   1125.7        27.135           0.739        24.916
+heuristic                82     15   18.3%   1042.5        26.221           0.725        24.047
+mcts_heuristic           81     21   25.9%   1062.5        26.224           0.738        24.011
+mcts_rave                77     10   13.0%    766.2        23.914           0.750        21.666
