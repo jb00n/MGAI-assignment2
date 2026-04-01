@@ -14,36 +14,61 @@ DIRECTIONS: typing.Dict[Move, typing.Tuple[int, int]] = {
 }
 
 #weights
-free_space_weight = 15          # try: 5, 15, 30 — most dominant feature, controls trap avoidance
-dead_end_penalty_weight = 50     # try: 20, 50, 100 — hard penalty when reachable space < snake length
-nearest_food_distance_weight_h = 1.5   # try: 0.5, 1.5, 3.0 — food urgency when health >= 40
-nearest_food_distance_weight_l = 6.0   # try: 3.0, 6.0, 10.0 — food urgency when health < 40
-food_avoid_penalty = 2.0         # try: 0.5, 2.0, 5.0 — soft penalty for eating food when healthy
-wall_clearence_weight = 0.8      # try: 0.2, 0.8, 2.0 — preference for staying away from walls
-center_weight = 0.5              # try: 0.1, 0.5, 1.5 — soft pull toward board center
-head_to_head_weight = 3.0        # try: 1.0, 3.0, 6.0 — reward for moving next to a weaker enemy head
-danger_base = 8.0               # try: 3.0, 8.0, 15.0 — base penalty for moving next to equal/stronger head
-danger_size_scale = 1.5          # try: 0.5, 1.5, 3.0 — how much size gap increases the danger penalty
-hazard_weight = 20              # try: 5, 20, 50 — scales the quadratic hazard penalty
+free_space_weight = 100
+dead_end_penalty_weight = 50     
+nearest_food_distance_weight_h = 4.0
+nearest_food_distance_weight_l = 6.0
+food_avoid_penalty = 0.2
+wall_clearence_weight = 0.2
+center_weight = 0.5
+head_to_head_weight = 3.0
+danger_base = 8.0
+danger_size_scale = 1.5
+hazard_weight = 100             
 
 
-def choose_heuristic_move(game_state: typing.Dict) -> Move:
+def choose_heuristic_move(game_state: typing.Dict, weights=None) -> Move:
+    # Default weights fallback
+    if weights is None:
+        weights = {
+            "free_space_weight": free_space_weight,
+            "dead_end_penalty_weight": dead_end_penalty_weight,
+            "nearest_food_distance_weight_h": nearest_food_distance_weight_h,
+            "nearest_food_distance_weight_l": nearest_food_distance_weight_l,
+            "food_avoid_penalty": food_avoid_penalty,
+            "wall_clearence_weight": wall_clearence_weight,
+            "center_weight": center_weight,
+            "head_to_head_weight": head_to_head_weight,
+            "danger_base": danger_base,
+            "danger_size_scale": danger_size_scale,
+            "hazard_weight": hazard_weight,
+        }
+
     candidates = _safe_moves(game_state)
     if not candidates:
         return "down"
 
-    # Pre-compute once, pass into evaluator
     board = game_state["board"]
     occupied = _occupied_cells(board["snakes"])
     hazards = hazard_cells(game_state)
     damage = hazard_damage_per_turn(game_state)
 
     scored_moves = [
-        (move, _evaluate_move(game_state, move, occupied, hazards, damage))
+        (
+            move,
+            _evaluate_move(
+                game_state,
+                move,
+                occupied,
+                hazards,
+                damage,
+                weights,
+            ),
+        )
         for move in candidates
     ]
-    return max(scored_moves, key=lambda pair: pair[1])[0]
 
+    return max(scored_moves, key=lambda pair: pair[1])[0]
 
 def backwards_move(game_state: typing.Dict) -> typing.Optional[Move]:
     # We've included code to prevent your Battlesnake from moving backwards
@@ -141,7 +166,7 @@ def hazard_damage_per_turn(game_state: typing.Dict) -> int:
     
     return int(settings.get("hazardDamagePerTurn", 14))
 
-def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typing.Tuple[int, int]], hazards: typing.Set[typing.Tuple[int, int]], hazard_damage: int) -> float:
+def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typing.Tuple[int, int]], hazards: typing.Set[typing.Tuple[int, int]], hazard_damage: int, weights: typing.Dict[str, float]) -> float:
     board = game_state["board"]
     width = board["width"]
     height = board["height"]
@@ -172,7 +197,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
     # Feature 2: Hard penalty for moves leading into spaces too small to survive
     dead_end_penalty = 0.0
     if free_space < len(body):
-        dead_end_penalty = dead_end_penalty_weight  # large enough to override all other features
+        dead_end_penalty = weights["dead_end_penalty_weight"]  # large enough to override all other features
     
 
     # feature 3: prefer moves that get closer to food, but only if the food is safe (not in hazard or next to hazard when low health). If no safe food, dont encourage getting closer to unsafe food.
@@ -204,7 +229,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
             safe_food_distances.append(dist)
 
 
-    nearest_food_distance_weight = nearest_food_distance_weight_h if health >= 40 else nearest_food_distance_weight_l
+    nearest_food_distance_weight = weights["nearest_food_distance_weight_h"] if health >= 40 else weights["nearest_food_distance_weight_l"]
 
     if safe_food_distances:
         # Prefer safe food
@@ -253,7 +278,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
         if dist == 1 and enemy_length >= my_length:
             # Scale penalty: much longer enemy = much more dangerous
             size_gap = enemy_length - my_length
-            danger_penalty += danger_base + size_gap * danger_size_scale
+            danger_penalty += weights["danger_base"] + size_gap * weights["danger_size_scale"]
 
     # Feature 7: hazard pit penalty 
     hazard_penalty = 0.0
@@ -273,7 +298,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
             # Strong nonlinear penalty as health gets low
             # (quadratic curve makes low health MUCH scarier)
             danger_ratio = total_damage / health
-            hazard_penalty = hazard_weight * (danger_ratio ** 2)
+            hazard_penalty = weights["hazard_weight"] * (danger_ratio ** 2)
 
             # Extra punishment if we'd be critically low
             if remaining_health < 15:
@@ -288,14 +313,14 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
     food_positions = {(f["x"], f["y"]) for f in food}
     food_avoidance_penalty = 0.0
     if next_pos in food_positions and health >= 30:
-        food_avoidance_penalty = food_avoid_penalty  # soft penalty, overrideable if all moves are bad
+        food_avoidance_penalty = weights["food_avoid_penalty"]  # soft penalty, overrideable if all moves are bad
         
     score = (
-        free_space_weight * free_space_normalized 
+        weights["free_space_weight"] * free_space_normalized 
         + nearest_food_distance_weight * nearest_food_score 
-        + wall_clearence_weight * wall_clearance 
-        + head_to_head_weight * length_advantage_score 
-        - center_weight * center_distance
+        + weights["wall_clearence_weight"] * wall_clearance 
+        + weights["head_to_head_weight"] * length_advantage_score 
+        - weights["center_weight"] * center_distance
         - dead_end_penalty
         - danger_penalty
         - hazard_penalty  
