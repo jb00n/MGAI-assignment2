@@ -2,6 +2,7 @@ import math
 import random
 import time
 import typing
+from collections import defaultdict
 
 from heuristic_agent import choose_heuristic_move, _evaluate_move
 # Hyperparameters
@@ -208,9 +209,9 @@ class Node:
         self.move = move
         self.children: typing.List["Node"] = []
         self.visits  = 0
-        self.visits_rave = 0
+        self.visits_rave: dict[str, int] = defaultdict(float)
         self.wins = 0.0
-        self.wins_rave = 0.0
+        self.wins_rave: dict[str, float]  = defaultdict(int)
         self.sim_moves = []
         me = game.my_snake()
         self.untried_moves = game.safe_moves(me) if (me and me.alive) else []
@@ -218,13 +219,13 @@ class Node:
     def rave(self) -> float:
         if self.visits == 0:
             return float("inf")
-        if self.visits_rave == 0:
+        if self.visits_rave[Node.move] == 0:
             # fall back to plain UCB1 when no RAVE data is available yet
             return (self.wins / self.visits +
                     UCB_C * math.sqrt(math.log(self.parent.visits) / self.visits))
         beta = ALPHA / (ALPHA + self.visits)
         return ((1 - beta) * self.wins / self.visits + 
-                beta * self.wins_rave / self.visits_rave +
+                beta * self.wins_rave[Node.move] / self.visits_rave[Node.move] +
                 UCB_C * math.sqrt(math.log(self.parent.visits) / self.visits))
 
     def is_fully_expanded(self) -> bool:
@@ -277,16 +278,17 @@ class Node:
     def backpropagate(self, result: float) -> None:
         self.visits += 1
         # self.wins   += (result - self.wins)/self.visits
-        self.wins = (self.wins*(self.visits-1)+result)/self.visits
+        # self.wins = (self.wins*(self.visits-1)+result)/self.visits
+        self.wins += result
 
 
-        used_actions = set()
-        for action in self.sim_moves:
-            if action not in used_actions:
-                self.visits_rave += 1
-                # self.wins_rave += (result - self.wins_rave)/self.visits_rave
-                self.wins_rave = (self.wins_rave*(self.visits_rave-1)+result)/self.visits_rave
-                used_actions.add(action)
+        used_actions = set(self.sim_moves)
+        for action in used_actions:
+            self.visits_rave[action] += 1
+            self.wins_rave[action] += result
+            # self.wins_rave += (result - self.wins_rave)/self.visits_rave
+            # self.wins_rave = (self.wins_rave*(self.visits_rave-1)+result)/self.visits_rave
+            used_actions.add(action)
 
         if self.parent:
             self.parent.backpropagate(result)

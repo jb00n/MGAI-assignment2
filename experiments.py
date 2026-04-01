@@ -17,13 +17,17 @@ from MCTS_random import GameSim, SnakeState, ALL_MOVES, _apply
 from heuristic_agent import choose_heuristic_move
 from MCTS_random import choose_mcts_move
 from MCTS_heuristic import choose_mcts_heuristic_move
+from MCTS_RAVE import choose_mcts_rave_move
+from MCTS_progressive_bias import choose_mcts_progressive_bias_move
 # import RAVE move function and other improvements here when ready
 
 
 AGENTS: typing.Dict[str, typing.Callable] = {
     "heuristic": choose_heuristic_move,
     "mcts": choose_mcts_move,
-    "mcts_heuristic": choose_mcts_heuristic_move
+    "mcts_heuristic": choose_mcts_heuristic_move,
+    "mcts_rave": choose_mcts_rave_move,
+    "mcts_progressive_bias": choose_mcts_progressive_bias_move
     # other agents here when ready
 }
 
