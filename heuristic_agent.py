@@ -13,6 +13,20 @@ DIRECTIONS: typing.Dict[Move, typing.Tuple[int, int]] = {
     "right": (1, 0),
 }
 
+#weights
+free_space_weight = 15          # try: 5, 15, 30 — most dominant feature, controls trap avoidance
+dead_end_penalty_weight = 50     # try: 20, 50, 100 — hard penalty when reachable space < snake length
+nearest_food_distance_weight_h = 1.5   # try: 0.5, 1.5, 3.0 — food urgency when health >= 40
+nearest_food_distance_weight_l = 6.0   # try: 3.0, 6.0, 10.0 — food urgency when health < 40
+food_avoid_penalty = 2.0         # try: 0.5, 2.0, 5.0 — soft penalty for eating food when healthy
+wall_clearence_weight = 0.8      # try: 0.2, 0.8, 2.0 — preference for staying away from walls
+center_weight = 0.5              # try: 0.1, 0.5, 1.5 — soft pull toward board center
+head_to_head_weight = 3.0        # try: 1.0, 3.0, 6.0 — reward for moving next to a weaker enemy head
+danger_base = 8.0               # try: 3.0, 8.0, 15.0 — base penalty for moving next to equal/stronger head
+danger_size_scale = 1.5          # try: 0.5, 1.5, 3.0 — how much size gap increases the danger penalty
+hazard_weight = 20              # try: 5, 20, 50 — scales the quadratic hazard penalty
+
+
 def choose_heuristic_move(game_state: typing.Dict) -> Move:
     candidates = _safe_moves(game_state)
     if not candidates:
@@ -148,7 +162,6 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
 
 
     # Feature 1: prefer positions with more reachable space.
-    free_space_weight = 180
     # flood fill algorithm to find how much free space is reachable from the next position. This helps avoid moves that lead to traps.
     free_space = _flood_fill_area(next_pos, occupied, width, height)
     # normalize
@@ -159,7 +172,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
     # Feature 2: Hard penalty for moves leading into spaces too small to survive
     dead_end_penalty = 0.0
     if free_space < len(body):
-        dead_end_penalty = 50.0  # large enough to override all other features
+        dead_end_penalty = dead_end_penalty_weight  # large enough to override all other features
     
 
     # feature 3: prefer moves that get closer to food, but only if the food is safe (not in hazard or next to hazard when low health). If no safe food, dont encourage getting closer to unsafe food.
@@ -191,7 +204,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
             safe_food_distances.append(dist)
 
 
-    nearest_food_distance_weight = 0.6 if health >= 40 else 2.0
+    nearest_food_distance_weight = nearest_food_distance_weight_h if health >= 40 else nearest_food_distance_weight_l
 
     if safe_food_distances:
         # Prefer safe food
@@ -209,7 +222,6 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
         
 
     # Feature 4: avoid walls to reduce trap risk.
-    wall_clearence_weight = 0.5
     wall_clearance = min(
         next_pos[0],
         next_pos[1],
@@ -218,7 +230,6 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
     )
 
   # Feature 5: reward moving next to a weaker enemy head (aggression)
-    head_to_head_weight = 1.5
     length_advantage_score = 0.0
     my_length = len(body)
     for snake in board["snakes"]:
@@ -242,7 +253,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
         if dist == 1 and enemy_length >= my_length:
             # Scale penalty: much longer enemy = much more dangerous
             size_gap = enemy_length - my_length
-            danger_penalty += 4.0 + size_gap * 1.5
+            danger_penalty += danger_base + size_gap * danger_size_scale
 
     # Feature 7: hazard pit penalty 
     hazard_penalty = 0.0
@@ -262,14 +273,13 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
             # Strong nonlinear penalty as health gets low
             # (quadratic curve makes low health MUCH scarier)
             danger_ratio = total_damage / health
-            hazard_penalty = 200 * (danger_ratio ** 2)
+            hazard_penalty = hazard_weight * (danger_ratio ** 2)
 
             # Extra punishment if we'd be critically low
             if remaining_health < 15:
                 hazard_penalty += 100
 
     # Feature 8: soft preference for center of board
-    center_weight = 0.3
     center_x, center_y = (width - 1) / 2, (height - 1) / 2
     center_distance = _manhattan(next_pos, (int(center_x), int(center_y)))
 
@@ -278,7 +288,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
     food_positions = {(f["x"], f["y"]) for f in food}
     food_avoidance_penalty = 0.0
     if next_pos in food_positions and health >= 30:
-        food_avoidance_penalty = 3.0  # soft penalty, overrideable if all moves are bad
+        food_avoidance_penalty = food_avoid_penalty  # soft penalty, overrideable if all moves are bad
         
     score = (
         free_space_weight * free_space_normalized 
