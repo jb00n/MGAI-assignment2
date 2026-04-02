@@ -279,7 +279,7 @@ if __name__ == "__main__":
     parser.add_argument("--width", type=int, default=11)
     parser.add_argument("--height", type=int, default=11)
     parser.add_argument("--seed", type=int, default=None)
-    parser.add_argument("--output", type=str, default="results.txt")
+    parser.add_argument("--output", type=str, default="mcts_hyperparam_results.txt")
 
     args = parser.parse_args()
 

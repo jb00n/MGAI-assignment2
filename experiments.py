@@ -297,7 +297,7 @@ def run_tournament(n_games: int,
     print()
     
     # save to TXT
-    with open("results.txt", "w") as f:
+    with open("best_snake_results.txt", "w") as f:
         f.write(f"Tournament: {n_games} games | {snakes_per_game} snakes/game\n")
         f.write(f"{'Agent':<20} {'Games':>6} {'Wins':>6} {'Win%':>7} {'ELO':>8} {'TrueSkill mu':>13} {'TrueSkill sigma':>15} {'Conservative':>13}\n")
         f.write("-" * 85 + "\n")
@@ -307,8 +307,36 @@ def run_tournament(n_games: int,
             wr = 100.0 * w / g if g > 0 else 0.0
             conservative = ts[name].mu - 3 * ts[name].sigma
             f.write(f"{name:<20} {g:>6} {w:>6} {wr:>6.1f}% {elo[name]:>8.1f} {ts[name].mu:>13.3f} {ts[name].sigma:>15.3f} {conservative:>13.3f}\n")
+    
+    print("Results saved to best_snake_results.txt")
+    
+        # save to CSV
+    with open("best_snake_results.csv", "w", newline="") as f:
+        fieldnames = ["Agent", "Games", "Wins", "Win%", "ELO", "TrueSkill_mu", "TrueSkill_sigma", "Conservative"]
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
 
-    print("Results saved to results.txt")
+        writer.writeheader()
+
+        for name in sorted_agents:
+            g = played[name]
+            w = wins[name]
+            wr = 100.0 * w / g if g > 0 else 0.0
+            conservative = ts[name].mu - 3 * ts[name].sigma
+
+            writer.writerow({
+                "Agent": name,
+                "Games": g,
+                "Wins": w,
+                "Win%": round(wr, 2),
+                "ELO": round(elo[name], 2),
+                "TrueSkill_mu": round(ts[name].mu, 4),
+                "TrueSkill_sigma": round(ts[name].sigma, 4),
+                "Conservative": round(conservative, 4)
+            })
+
+    print("Results saved to best_snake_results.csv")
+
+   
     
 #---------- MAIN ---------
     

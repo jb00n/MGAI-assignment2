@@ -1,0 +1,6 @@
+Agent,Games,Wins,Win%,ELO,TrueSkill_mu,TrueSkill_sigma,Conservative
+heuristic,86,47,54.65,1061.68,27.7161,0.7625,25.4286
+mcts_heuristic,82,19,23.17,1071.56,26.0056,0.7331,23.8062
+mcts_progressive_bias,73,13,17.81,984.72,25.2113,0.7557,22.9442
+mcts_rave,89,12,13.48,955.17,24.0994,0.73,21.9095
+mcts,70,9,12.86,926.86,23.6283,0.7718,21.313
