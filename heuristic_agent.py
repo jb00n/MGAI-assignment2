@@ -166,7 +166,23 @@ def hazard_damage_per_turn(game_state: typing.Dict) -> int:
     
     return int(settings.get("hazardDamagePerTurn", 14))
 
-def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typing.Tuple[int, int]], hazards: typing.Set[typing.Tuple[int, int]], hazard_damage: int, weights: typing.Dict[str, float]) -> float:
+def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typing.Tuple[int, int]], hazards: typing.Set[typing.Tuple[int, int]], hazard_damage: int, weights: typing.Dict[str, float]=None) -> float:
+    # Default weights fallback
+    if weights is None:
+        weights = {
+            "free_space_weight": free_space_weight,
+            "dead_end_penalty_weight": dead_end_penalty_weight,
+            "nearest_food_distance_weight_h": nearest_food_distance_weight_h,
+            "nearest_food_distance_weight_l": nearest_food_distance_weight_l,
+            "food_avoid_penalty": food_avoid_penalty,
+            "wall_clearence_weight": wall_clearence_weight,
+            "center_weight": center_weight,
+            "head_to_head_weight": head_to_head_weight,
+            "danger_base": danger_base,
+            "danger_size_scale": danger_size_scale,
+            "hazard_weight": hazard_weight,
+        }
+    
     board = game_state["board"]
     width = board["width"]
     height = board["height"]
