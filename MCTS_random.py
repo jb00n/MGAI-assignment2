@@ -3,7 +3,7 @@ import random
 import time
 import typing
 
-# Hyperparameters
+# Hyperparameters based on hyperarams found in hyperparam_experiment_MCTS.py
 
 UCB_C = 1.41
 MAX_DEPTH = 20
