@@ -6,6 +6,7 @@ import numpy as np
 
 # ---------- LOAD DATA ----------
 
+# Expects a CSV with columns: Agent, Games, Wins, Win%, ELO, TrueSkill_mu, TrueSkill_sigma, Conservative
 def load_csv(path: str) -> list:
     with open(path, newline="") as f:
         reader = csv.DictReader(f)
@@ -35,11 +36,13 @@ plt.rcParams.update({
     "axes.spines.right": False,
 })
 
+# helper to assign consistent colours to agents across plots
 def agent_colours(agents):
     return {a: COLOURS[i % len(COLOURS)] for i, a in enumerate(agents)}
 
 # ---------- bar chart of win% ----------
 
+# simple bar chart of win% for each agent, with a dashed line at 25% to show random baseline
 def plot_winpct(data, out):
     agents = [r["agent"]   for r in data]
     win_pct = [r["win_pct"] for r in data]
@@ -67,6 +70,7 @@ def plot_winpct(data, out):
 
 # ---------- ELO vs TrueSkill scatter ----------
 
+# scatter plot comparing ELO rating to TrueSkill conservative score, with agent names annotated
 def plot_elo_vs_ts(data, out):
     col_map = agent_colours([r["agent"] for r in data])
 
@@ -89,6 +93,7 @@ def plot_elo_vs_ts(data, out):
 
 # ---------- TrueSkill mu +/- sigma error bars ----------
 
+# horizontal error bars showing TrueSkill mu with sigma as error, and a shaded band for the 1-sigma range
 def plot_trueskill_errorbars(data, out):
     agents = [r["agent"] for r in data]
     mus = [r["ts_mu"] for r in data]
@@ -116,6 +121,7 @@ def plot_trueskill_errorbars(data, out):
 
 # ---------- wins vs games played ----------
 
+# scatter plot of total wins vs total games played, with diagonal lines for reference win rates (e.g. 25%, 50%)
 def plot_wins_vs_games(data, out):
     col_map = agent_colours([r["agent"] for r in data])
 
@@ -145,6 +151,7 @@ def plot_wins_vs_games(data, out):
 
 # ---------- combined leaderboard (grouped bars) ----------
 
+# grouped bar chart comparing all agents across multiple metrics (win%, ELO, TrueSkill Conservative), with each metric normalised to 0-100 for fair comparison
 def plot_combined_leaderboard(data, out):
     agents = [r["agent"] for r in data]
     n = len(agents)

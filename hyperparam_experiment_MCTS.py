@@ -27,14 +27,21 @@ BASELINE = {
 
 # ---------- ELO ----------
 
+# originally designed for chess - every game treated as a series of 1v1 matches between players, with a win/loss/draw outcome
+# expected score = 1 / (1 + 10^((opponent_rating - your_rating) / 400))
+# new rating = old_rating + K * (actual_score - expected_score)
+# if you beat someone higher than you = you earn more points 
+# if you beat someone lower than you = you earn fewer points
+
 INITIAL_ELO = 1000.0
 ELO_K = 32
 
-# calculate expected win probability of player A against player B
+# returns expected score for player given their elo and opponent's elo
 def expected_elo(player_elo: float, opponent_elo: float) -> float:
     return 1 / (1 + 10 ** ((opponent_elo - player_elo) / 400))
 
-# update ratings based on ranking of players in a game
+
+# updates ratings in place based on ranking of players in a game (first place beats everyone else, second place beats everyone except first etc)
 def _update_elo(ratings: typing.Dict[str, float], ranking: typing.List[str]) -> None:
     n = len(ranking)
     deltas = defaultdict(float)
@@ -47,11 +54,16 @@ def _update_elo(ratings: typing.Dict[str, float], ranking: typing.List[str]) -> 
     for name, delta in deltas.items():
         ratings[name] += delta
 
+
+
+
 # ---------- GAME HELPERS ----------
 
 # create a random game state with the given dimensions and agent IDs
 def make_game_state(width: int, height: int, agent_ids: typing.List[str]) -> typing.Dict:
     n = len(agent_ids)
+    
+    # pick from a set of candidate spawn points that are reasonably spaced out and not too close to walls.
     candidates = []
     for x in [1, width // 2, width - 2]:
         for y in [1, height // 2, height - 2]:
@@ -60,6 +72,7 @@ def make_game_state(width: int, height: int, agent_ids: typing.List[str]) -> typ
     spawns = candidates[:n]
 
     snakes = []
+    # assign spawn points to agents in order and create snake bodies (all 3 segments on same cell at spawn)
     for i, aid in enumerate(agent_ids):
         pos = spawns[i]
         snakes.append({
@@ -69,6 +82,7 @@ def make_game_state(width: int, height: int, agent_ids: typing.List[str]) -> typ
             "body": [pos, pos, pos],
         })
 
+    # scatter food randomly (avoid snake heads)
     heads = {(s["body"][0]["x"], s["body"][0]["y"]) for s in snakes}
     food = []
     while len(food) < max(2, n):
@@ -97,11 +111,13 @@ def make_game_state(width: int, height: int, agent_ids: typing.List[str]) -> typ
         },
     }
 
+
 # convert base game state to POV for a given snake ID
 def _pov_state(base_state: typing.Dict, my_id: str) -> typing.Dict:
     board = base_state["board"]
     you = next(s for s in board["snakes"] if s["id"] == my_id)
     return {**base_state, "you": you}
+
 
 # convert GameSim state back to base game state format for move functions
 def _sim_to_base_state(sim: GameSim) -> typing.Dict:
@@ -135,13 +151,27 @@ def _sim_to_base_state(sim: GameSim) -> typing.Dict:
         },
     }
 
+
+
+
+# -------- GAME RUNNER ---------
+
 # run a game with the given agent names and move functions, returning the final ranking
-def run_game(agent_names, move_fns, width=11, height=11, max_turns=500):
+def run_game(agent_names: typing.List[str],
+             move_fns: typing.List[typing.Callable],
+             width: int = 11,
+             height: int = 11,
+             max_turns: int = 500) -> typing.List[str]:
+    
+   # create initial game state and simulator
     base = make_game_state(width, height, agent_names)
     sim = GameSim(base)
+
+    # create mapping of agent IDs to their move functions for easy lookup during the game loop
     agent_map = dict(zip(agent_names, move_fns))
     death_order = []
 
+    # game loop - step through turns until max_turns or all snakes dead, applying moves from each agent's move function
     for _ in range(max_turns):
         if sim.is_terminal():
             break
@@ -149,6 +179,7 @@ def run_game(agent_names, move_fns, width=11, height=11, max_turns=500):
         base_state = _sim_to_base_state(sim)
         actions = {}
 
+        # on each turn, get the current state, ask each alive snake for its move, and then apply all moves simultaneously
         for snake in sim.alive_snakes():
             fn = agent_map[snake.id]
             pov = _pov_state(base_state, snake.id)
@@ -167,13 +198,19 @@ def run_game(agent_names, move_fns, width=11, height=11, max_turns=500):
         if newly_dead:
             death_order.append(list(newly_dead))
 
+    # survivors are ranked above all dead snakes
     survivors = [s.id for s in sim.alive_snakes()]
     if survivors:
+        # survivors are ranked above all dead snakes, but in no particular order among themselves since we dont know who would have won if the game had continued
         ranking = survivors + [n for g in reversed(death_order) for n in g]
     else:
+        # if no survivors, just rank by death order (later deaths are better)
         ranking = [n for g in reversed(death_order) for n in g]
 
     return ranking
+
+
+
 
 # ---------- PATCHING ----------
 
@@ -183,9 +220,11 @@ def _patch_mcts(ucb_c, max_depth, time_limit_ms):
     MCTS_random.MAX_DEPTH = max_depth
     MCTS_random.TIME_LIMIT_MS = time_limit_ms
 
+
 # restore baseline config in MCTS module (since baselines are run after candidate in each game, we can just patch before each game)
 def _restore_baseline():
     _patch_mcts(**BASELINE)
+
 
 # create a move function for the baseline that uses the current MCTS parameters (which will be patched to baseline values before each game)
 def _make_baseline_fn():
@@ -193,6 +232,9 @@ def _make_baseline_fn():
         _patch_mcts(**BASELINE)
         return MCTS_random.choose_mcts_move(game_state)
     return baseline_move
+
+
+
 
 # ---------- EXPERIMENT ----------
 
@@ -270,9 +312,14 @@ def run_experiments(reps, snakes_per_game, width, height, output_file):
 
     print(f"\nSaved to {output_file}")
 
+
+
+
 # ---------- MAIN ----------
 
+# run the tournament when this script is executed directly
 if __name__ == "__main__":
+    # parse command line arguments for tournament settings (number of games, snakes per game, board size, random seed)
     parser = argparse.ArgumentParser()
     parser.add_argument("--reps", type=int, default=5)
     parser.add_argument("--snakes", type=int, default=4)

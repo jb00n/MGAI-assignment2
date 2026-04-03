@@ -19,7 +19,6 @@ from MCTS_random import choose_mcts_move
 from MCTS_heuristic import choose_mcts_heuristic_move
 from MCTS_RAVE import choose_mcts_rave_move
 from MCTS_progressive_bias import choose_mcts_progressive_bias_move
-# import RAVE move function and other improvements here when ready
 
 
 AGENTS: typing.Dict[str, typing.Callable] = {
@@ -28,7 +27,6 @@ AGENTS: typing.Dict[str, typing.Callable] = {
     "mcts_heuristic": choose_mcts_heuristic_move,
     "mcts_rave": choose_mcts_rave_move,
     "mcts_progressive_bias": choose_mcts_progressive_bias_move
-    # other agents here when ready
 }
 
 # -------- ELO ---------
@@ -59,9 +57,12 @@ def _update_elo(ratings: typing.Dict[str, float], ranking: typing.List[str]) -> 
     for name, delta in deltas.items():
         ratings[name] += delta
         
+
+
+
 # -------- GAME SIMULATION ---------
 
-# helper function to create a game state with random snake positions and food (for testing agents without running an actual server)
+# create a random game state with the given dimensions and agent IDs
 def make_game_state(width: int, height: int, agent_ids: typing.List[str]) -> typing.Dict:
    
     n = len(agent_ids)
@@ -113,15 +114,14 @@ def make_game_state(width: int, height: int, agent_ids: typing.List[str]) -> typ
         },
     }
     
-# helper function to convert a base game state into the perspective of a specific agent (setting 'you' to the snake matching my_id)
+# convert base game state to POV for a given snake ID
 def _pov_state(base_state: typing.Dict, my_id: str) -> typing.Dict:
     """Return a copy of base_state with 'you' set to the snake matching my_id."""
     board = base_state["board"]
     you = next(s for s in board["snakes"] if s["id"] == my_id)
     return {**base_state, "you": you}
 
-
-# helper function to convert a live GameSim back into a game-state dict for the agents (for testing agents without running an actual server)
+# convert GameSim state back to base game state format for move functions
 def _sim_to_base_state(sim: GameSim) -> typing.Dict:
 
     snakes = []
@@ -154,8 +154,7 @@ def _sim_to_base_state(sim: GameSim) -> typing.Dict:
         },
     }
 
-# helper function to run a game between agents without needing to start an actual server (for testing agents against each other)
-# returns ranking of agents by finish (first place is best, last place is worst)
+# run a game with the given agent names and move functions, returning the final ranking
 def run_game(agent_names: typing.List[str],
              move_fns: typing.List[typing.Callable],
              width: int = 11,
@@ -187,6 +186,7 @@ def run_game(agent_names: typing.List[str],
                 move = "down"
             actions[snake.id] = move
 
+        # determine ranking based on death order and survivors
         alive_before = {s.id for s in sim.alive_snakes()}
         sim.step(actions)
         alive_after  = {s.id for s in sim.alive_snakes()}
@@ -206,6 +206,9 @@ def run_game(agent_names: typing.List[str],
 
     return ranking
 
+
+
+
 # ---------- RUN TOURNAMENT ---------
 
 # helper function to run a tournament of multiple games between agents and track stats of wins, ELO ratings, and TrueSkill ratings
@@ -214,15 +217,15 @@ def run_tournament(n_games: int,
                    width: int = 11,
                    height: int = 11) -> None:
 
-    agent_names = list(AGENTS.keys())
-    move_fns = list(AGENTS.values())
-    n_agents = len(agent_names)
+    agent_names     = list(AGENTS.keys())
+    move_fns        = list(AGENTS.values())
+    n_agents        = len(agent_names)
 
     # initialise stats
-    wins = defaultdict(int)
-    played = defaultdict(int)
-    elo = {name: INITIAL_ELO for name in agent_names}
-    ts = {name: Rating() for name in agent_names}  # TrueSkill
+    wins    = defaultdict(int)
+    played  = defaultdict(int)
+    elo     = {name: INITIAL_ELO for name in agent_names}
+    ts      = {name: Rating() for name in agent_names}  # TrueSkill
     
     # Trueskill is when each player has two values = mu and sigma, representing their skill and uncertainty about their skill
     # players start with mu=25 and sigma=8.333 and as they play games, their mu and sigma are updated based on the outcomes
@@ -269,6 +272,9 @@ def run_tournament(n_games: int,
         if (game_idx + 1) % 10 == 0:
             print(f"  Completed {game_idx + 1}/{n_games} games...")
             
+
+
+
 # ---------- RESULTS ---------
     print(f"\n{'='*60}")
     print(f"  RESULTS")
@@ -283,9 +289,9 @@ def run_tournament(n_games: int,
                            reverse=True)
 
     for name in sorted_agents:
-        g = played[name]
-        w = wins[name]
-        wr = 100.0 * w / g if g > 0 else 0.0
+        g   = played[name]
+        w   = wins[name]
+        wr  = 100.0 * w / g if g > 0 else 0.0
         print(f"{name:<20} {g:>6} {w:>6} {wr:>6.1f}% "
               f"{elo[name]:>8.1f} {ts[name].mu:>12.3f} {ts[name].sigma:>12.3f}")
 
@@ -310,7 +316,7 @@ def run_tournament(n_games: int,
     
     print("Results saved to best_snake_results.txt")
     
-        # save to CSV
+    # save to CSV
     with open("best_snake_results.csv", "w", newline="") as f:
         fieldnames = ["Agent", "Games", "Wins", "Win%", "ELO", "TrueSkill_mu", "TrueSkill_sigma", "Conservative"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -318,9 +324,9 @@ def run_tournament(n_games: int,
         writer.writeheader()
 
         for name in sorted_agents:
-            g = played[name]
-            w = wins[name]
-            wr = 100.0 * w / g if g > 0 else 0.0
+            g   = played[name]
+            w   = wins[name]
+            wr  = 100.0 * w / g if g > 0 else 0.0
             conservative = ts[name].mu - 3 * ts[name].sigma
 
             writer.writerow({
@@ -340,7 +346,7 @@ def run_tournament(n_games: int,
     
 #---------- MAIN ---------
     
-# run the tournament when this script is executed directly (not imported as a module)
+# run the tournament when this script is executed directly
 if __name__ == "__main__":
     
     # parse command line arguments for tournament settings (number of games, snakes per game, board size, random seed)

@@ -3,14 +3,13 @@ import random
 import time
 import typing
 
-# Hyperparameters based on hyperarams found in hyperparam_experiment_MCTS.py
+# hyperparameters based on hyperarams found in hyperparam_experiment_MCTS.py
 
 UCB_C = 1.41
 MAX_DEPTH = 20
 TIME_LIMIT_MS = 850
 
-# Directions
-
+# directions
 ALL_MOVES = ("up", "down", "left", "right")
 
 DELTAS = {
@@ -24,6 +23,7 @@ DELTAS = {
 def _apply(x: int, y: int, direction: str) -> typing.Tuple[int, int]:
     dx, dy = DELTAS[direction]
     return x + dx, y + dy
+
 
 # class representing the state of a snake: its body segments, health, length, and alive status
 class SnakeState:
@@ -50,6 +50,8 @@ class SnakeState:
     def head(self) -> typing.Tuple[int, int]:
         return self.body[0]
 
+
+
 # class representing the entire game state: the board, food, hazards, snakes, and turn number
 class GameSim:
     def __init__(self, game_state: typing.Dict):
@@ -67,6 +69,7 @@ class GameSim:
         self.my_id      = game_state["you"]["id"]
         self.turn       = int(game_state["turn"])
 
+
     def copy(self) -> "GameSim":
         g             = object.__new__(GameSim)
         g.width       = self.width
@@ -80,9 +83,11 @@ class GameSim:
         g.turn        = self.turn
         return g
 
+
     # return a list of all alive snakes in the game
     def alive_snakes(self) -> typing.List[SnakeState]:
         return [s for s in self.snakes if s.alive]
+
 
     # return the snakestate of our own snake, or none if not found
     def my_snake(self) -> typing.Optional[SnakeState]:
@@ -91,12 +96,14 @@ class GameSim:
                 return s
         return None
 
+
     # check if the game has reached a terminal state (our snake is dead or only one snake remains alive)
     def is_terminal(self) -> bool:
         me = self.my_snake()
         if me is None or not me.alive:
             return True
         return len(self.alive_snakes()) <= 1
+
 
     # return a set of all board positions occupied by alive snakes (excluding their heads)
     def _occupied(self) -> typing.Set[typing.Tuple[int, int]]:
@@ -228,23 +235,28 @@ class Node:
         me = game.my_snake()
         self.untried_moves = game.safe_moves(me) if (me and me.alive) else []
 
+
     # calculate the UCB1 score for this node to balance exploration and exploitation
     def ucb1(self) -> float:
         if self.visits == 0:
             return float("inf") # prioritize unvisited nodes
         return (self.wins / self.visits + UCB_C * math.sqrt(math.log(self.parent.visits) / self.visits)) # exploitation + exploration
 
+
     # check if all possible moves from this node have been tried (so if we can expand further)
     def is_fully_expanded(self) -> bool:
         return len(self.untried_moves) == 0
+
 
     # check if this node represents a terminal game state (win/loss/draw)
     def is_terminal(self) -> bool:
         return self.game.is_terminal()
 
+
     # select the child node with the highest UCB1 score to explore next
     def best_child(self) -> "Node":
         return max(self.children, key=lambda n: n.ucb1())
+
 
     # expand this node by taking one of untried moves, applying it to game state and creating a new child node for that move
     def expand(self) -> "Node":
@@ -263,8 +275,11 @@ class Node:
         child = Node(new_game, parent=self, move=direction) # create a new child node with the resulting game state and move 
         self.children.append(child) # add new child node to this node's children list
         return child
+    
+
  
     # ======== RANDOM ROLLOUT =======
+
     # perform a RANDOM rollout (simulation) from this nodes game state until a terminal state is reached, return the evaluation score of the outcome
     def rollout(self) -> float:
         sim   = self.game.copy()
@@ -278,6 +293,7 @@ class Node:
             depth += 1
         return _evaluate(sim)
 
+
     # after rollout, backpropagate the result up the tree by updating visit/win stats for this node and all its ancestors
     def backpropagate(self, result: float) -> None:
         self.visits += 1
@@ -285,11 +301,13 @@ class Node:
         if self.parent:
             self.parent.backpropagate(result)
 
+
+
+
 # -------- MCTS Move Function ------------
 
 # main function to run MCTS and choose the best move direction based on simulations 
 def choose_mcts_move(game_state: typing.Dict) -> str:
-    """Run MCTS and return the best move direction."""
     root_game = GameSim(game_state)
     root      = Node(root_game)
 

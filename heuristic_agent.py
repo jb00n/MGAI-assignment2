@@ -7,28 +7,29 @@ Move = str
 Point = typing.Dict[str, int]
 
 DIRECTIONS: typing.Dict[Move, typing.Tuple[int, int]] = {
-    "up": (0, 1),
-    "down": (0, -1),
-    "left": (-1, 0),
-    "right": (1, 0),
+    "up":       (0, 1),
+    "down":     (0, -1),
+    "left":     (-1, 0),
+    "right":    (1, 0),
 }
 
-#weights
-free_space_weight = 100
-dead_end_penalty_weight = 50     
-nearest_food_distance_weight_h = 4.0
-nearest_food_distance_weight_l = 6.0
-food_avoid_penalty = 0.2
-wall_clearence_weight = 0.2
-center_weight = 0.5
-head_to_head_weight = 3.0
-danger_base = 8.0
-danger_size_scale = 1.5
-hazard_weight = 100             
+# weights
+free_space_weight               = 100
+dead_end_penalty_weight         = 50     
+nearest_food_distance_weight_h  = 4.0
+nearest_food_distance_weight_l  = 6.0
+food_avoid_penalty              = 0.2
+wall_clearence_weight           = 0.2
+center_weight                   = 0.5
+head_to_head_weight             = 3.0
+danger_base                     = 8.0
+danger_size_scale               = 1.5
+hazard_weight                   = 100             
 
 
+# main function to choose a move based on heuristics. Evaluates each safe move using a weighted combination of features and picks the best one.
 def choose_heuristic_move(game_state: typing.Dict, weights=None) -> Move:
-    # Default weights fallback
+    # default weights fallback
     if weights is None:
         weights = {
             "free_space_weight": free_space_weight,
@@ -48,10 +49,10 @@ def choose_heuristic_move(game_state: typing.Dict, weights=None) -> Move:
     if not candidates:
         return "down"
 
-    board = game_state["board"]
-    occupied = _occupied_cells(board["snakes"])
-    hazards = hazard_cells(game_state)
-    damage = hazard_damage_per_turn(game_state)
+    board       = game_state["board"]
+    occupied    = _occupied_cells(board["snakes"])
+    hazards     = hazard_cells(game_state)
+    damage      = hazard_damage_per_turn(game_state)
 
     scored_moves = [
         (
@@ -70,8 +71,8 @@ def choose_heuristic_move(game_state: typing.Dict, weights=None) -> Move:
 
     return max(scored_moves, key=lambda pair: pair[1])[0]
 
+# prevent your Battlesnake from moving backwards
 def backwards_move(game_state: typing.Dict) -> typing.Optional[Move]:
-    # We've included code to prevent your Battlesnake from moving backwards
     body = game_state["you"]["body"]
 
     my_head = body[0]
@@ -81,25 +82,26 @@ def backwards_move(game_state: typing.Dict) -> typing.Optional[Move]:
     if my_neck["x"] == my_head["x"] and my_neck["y"] == my_head["y"]:
         return None
 
-    if my_neck["x"] < my_head["x"]:  # Neck is left of head, don't move left
+    if my_neck["x"] < my_head["x"]:  # neck is left of head, don't move left
         neck_move = "left"
 
-    elif my_neck["x"] > my_head["x"]:  # Neck is right of head, don't move right
+    elif my_neck["x"] > my_head["x"]:  # neck is right of head, don't move right
         neck_move = "right"
 
-    elif my_neck["y"] < my_head["y"]:  # Neck is below head, don't move down
+    elif my_neck["y"] < my_head["y"]:  # neck is below head, don't move down
         neck_move = "down"
 
-    elif my_neck["y"] > my_head["y"]:  # Neck is above head, don't move up
+    elif my_neck["y"] > my_head["y"]:  # neck is above head, don't move up
         neck_move = "up"
 
     return neck_move
 
+# returns list of moves that dont immediately lead to death (moving into wall, self, or other snake body)
 def _safe_moves(game_state: typing.Dict) -> typing.List[Move]:
     is_move_safe = {"up": True, "down": True, "left": True, "right": True}
     my_id = game_state["you"]["id"]
 
-    # Prevent moving backwards
+    # prevent moving backwards
     back = backwards_move(game_state)
     if back:
         is_move_safe[back] = False
@@ -135,7 +137,7 @@ def _safe_moves(game_state: typing.Dict) -> typing.List[Move]:
         if snake["id"] == my_id:
             continue  # skip self
 
-        # Always avoid body segments (excluding their tail which may vacate)
+        # avoid body segments (excluding their tail which may vacate)
         for segment in snake['body'][:-1]:  # exclude tail
             if segment["x"] == my_head["x"] and segment["y"] == my_head["y"] + 1:
                 is_move_safe["up"] = False
@@ -148,15 +150,16 @@ def _safe_moves(game_state: typing.Dict) -> typing.List[Move]:
     return [move for move, safe in is_move_safe.items() if safe]
 
 
+# returns the set of all currently active hazard pit coordinates
 def hazard_cells(game_state: typing.Dict) -> typing.Set[typing.Tuple[int, int]]:
-    """ returns the set of all currently active hazard pit coordinates."""
     return{
         (h["x"], h["y"])
         for h in game_state["board"].get("hazards", [])
     }
         
+
+# falls back to 14 (one stack) if field isnt present, each stack adds 14 damage so fully stacked (4) = 56 per turn
 def hazard_damage_per_turn(game_state: typing.Dict) -> int:
-    """ falls back to 14 (one stack) if field isnt present, each stack adds 14 damage so fully stacked (4) = 56 per turn"""
     settings = (
         game_state
         .get("game", {})
@@ -166,8 +169,9 @@ def hazard_damage_per_turn(game_state: typing.Dict) -> int:
     
     return int(settings.get("hazardDamagePerTurn", 14))
 
+# evaluates a move based on multiple heuristics and returns a score. Higher score = better move.
 def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typing.Tuple[int, int]], hazards: typing.Set[typing.Tuple[int, int]], hazard_damage: int, weights: typing.Dict[str, float]=None) -> float:
-    # Default weights fallback
+    # default weights fallback
     if weights is None:
         weights = {
             "free_space_weight": free_space_weight,
@@ -183,21 +187,21 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
             "hazard_weight": hazard_weight,
         }
     
-    board = game_state["board"]
-    width = board["width"]
-    height = board["height"]
-    food = board["food"]
+    board   = game_state["board"]
+    width   = board["width"]
+    height  = board["height"]
+    food    = board["food"]
 
-    you = game_state["you"]
-    health = you["health"]
-    body = you["body"]
-    head = body[0]
+    you     = game_state["you"]
+    health  = you["health"]
+    body    = you["body"]
+    head    = body[0]
 
     dx, dy = DIRECTIONS[move]
     next_pos = (head["x"] + dx, head["y"] + dy)
 
    
-    # Remove  tails that will vacate next turn from blocked set (all tails of snakes that didnt just eat)
+    # remove tails that will vacate next turn from blocked set (all tails of snakes that didnt just eat)
     vacating = _tails_vacating_next_turn(board["snakes"])
     occupied = occupied - vacating # dont mutate original set
 
@@ -216,7 +220,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
         dead_end_penalty = weights["dead_end_penalty_weight"]  # large enough to override all other features
     
 
-    # feature 3: prefer moves that get closer to food, but only if the food is safe (not in hazard or next to hazard when low health). If no safe food, dont encourage getting closer to unsafe food.
+    # Feature 3: prefer moves that get closer to food, but only if the food is safe (not in hazard or next to hazard when low health). If no safe food, dont encourage getting closer to unsafe food.
     nearest_food_score = 0.0
 
     safe_food_distances = []
@@ -229,36 +233,36 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
         if food_pos in hazards:
             total_damage = hazard_damage + 1
 
-            # If it kills us → NEVER consider
+            # ff it kills us → NEVER consider
             if total_damage >= health:
                 continue
 
             remaining_health = health - total_damage
 
-            # Risky but survivable food
+            # risky but survivable food
             if remaining_health < 20:
                 risky_food_distances.append(dist)
             else:
                 safe_food_distances.append(dist)
         else:
-            # Normal safe food
+            # normal safe food
             safe_food_distances.append(dist)
 
 
     nearest_food_distance_weight = weights["nearest_food_distance_weight_h"] if health >= 40 else weights["nearest_food_distance_weight_l"]
 
     if safe_food_distances:
-        # Prefer safe food
+        # prefer safe food
         nearest_food_distance = min(safe_food_distances)
         nearest_food_score = max(0, 10 - nearest_food_distance)
 
     elif risky_food_distances:
-        # No safe food → go for risky food (but weaker reward)
+        # no safe food → go for risky food (but weaker reward)
         nearest_food_distance = min(risky_food_distances)
         nearest_food_score = 0.5 * max(0, 10 - nearest_food_distance)
 
     else:
-        # No reachable food at all
+        # no reachable food at all
         nearest_food_score = 0
         
 
@@ -308,15 +312,15 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
             hazard_penalty = 1000.0  # effectively "never pick this"
 
         else:
-            # Remaining health after stepping in hazard
+            # remaining health after stepping in hazard
             remaining_health = health - total_damage
 
-            # Strong nonlinear penalty as health gets low
+            # strong nonlinear penalty as health gets low
             # (quadratic curve makes low health MUCH scarier)
             danger_ratio = total_damage / health
             hazard_penalty = weights["hazard_weight"] * (danger_ratio ** 2)
 
-            # Extra punishment if we'd be critically low
+            # extra punishment if we'd be critically low
             if remaining_health < 15:
                 hazard_penalty += 100
 
@@ -347,6 +351,7 @@ def _evaluate_move(game_state: typing.Dict, move: Move, occupied: typing.Set[typ
 
 # ----- Utility functions -----
 
+# returns the set of cells adjacent to enemy heads that are occupied by snakes at least as long as us (potential head-to-head collision threats).
 def _enemy_head_threat_cells(snakes: typing.List[typing.Dict], my_length: int) -> typing.Set[typing.Tuple[int, int]]:
     threat_cells: typing.Set[typing.Tuple[int, int]] = set()
 
@@ -361,6 +366,7 @@ def _enemy_head_threat_cells(snakes: typing.List[typing.Dict], my_length: int) -
     return threat_cells
 
 
+# returns the set of all cells occupied by any snake body segment (including tails that will vacate)
 def _occupied_cells(snakes: typing.List[typing.Dict]) -> typing.Set[typing.Tuple[int, int]]:
     occupied: typing.Set[typing.Tuple[int, int]] = set()
     for snake in snakes:
@@ -369,13 +375,10 @@ def _occupied_cells(snakes: typing.List[typing.Dict]) -> typing.Set[typing.Tuple
     return occupied
 
 
+# returns the set of tail positions that will vacate next turn (all tails of snakes that didnt just eat)
 def _tails_vacating_next_turn(
     snakes: typing.List[typing.Dict],
 ) -> typing.Set[typing.Tuple[int, int]]:
-    """
-    Returns tail positions that will be vacated next turn.
-    A tail does NOT vacate if the snake just ate (health == 100).
-    """
     vacating = set()
     for snake in snakes:
         # If health is 100, the snake just ate and its tail stays
@@ -386,6 +389,8 @@ def _tails_vacating_next_turn(
     return vacating
 
 
+# flood fill algorithm to calculate how many free cells are reachable from a given starting point, given a set of blocked cells. 
+# Used to evaluate how much free space is accessible from a potential move.
 def _flood_fill_area(
     start: typing.Tuple[int, int],
     blocked: typing.Set[typing.Tuple[int, int]],
@@ -412,6 +417,7 @@ def _flood_fill_area(
 
     return len(visited)
 
+
+# Manhattan distance heuristic for estimating distance between two points on the grid. Used for food distance and head-to-head threat evaluation.
 def _manhattan(a: typing.Tuple[int, int], b: typing.Tuple[int, int]) -> int:
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
-
